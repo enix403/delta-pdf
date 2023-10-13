@@ -1,7 +1,10 @@
+import 'package:deltapdf/dto/item_type.dart';
 import 'package:flutter/material.dart';
 
 class GridCatalogueItem extends StatelessWidget {
-  const GridCatalogueItem({super.key});
+  final ItemType itemType;
+
+  const GridCatalogueItem({super.key, required this.itemType});
 
   @override
   Widget build(BuildContext context) {
@@ -13,7 +16,9 @@ class GridCatalogueItem extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Icon(
-            Icons.folder,
+            //Icons.folder,
+            //Icons.article,
+            itemType == ItemType.Folder ? Icons.folder : Icons.article,
             size: 132,
             //color: Color(0xAA6F2219),
             color: Color(0xAA6A371C),
