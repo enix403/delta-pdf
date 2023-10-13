@@ -88,6 +88,7 @@ class _FilesViewState extends State<FilesView> {
 }
 
 class CreateItemModal extends StatelessWidget {
+
   const CreateItemModal({super.key});
 
   @override
@@ -125,14 +126,23 @@ class CreateItemModal extends StatelessWidget {
     );
   }
 
-  void _onCreaterFolderPressed(BuildContext context) {
+  Future<void> _onCreaterFolderPressed(BuildContext context) async {
     Navigator.pop(context);
-    showDialog<void>(
+
+    // ignore: unused_local_variable
+    final value = await _showFolderNameDialog(context);
+  }
+
+  Future<String?> _showFolderNameDialog(BuildContext context) {
+    final textController = TextEditingController();
+
+    return showDialog<String?>(
       context: context,
       builder: (context) {
         return AlertDialog(
           title: const Text("Create Folder"),
           content: TextField(
+            controller: textController,
             maxLines: 1,
             decoration: InputDecoration(
               border: OutlineInputBorder(),
@@ -144,13 +154,13 @@ class CreateItemModal extends StatelessWidget {
             TextButton(
               child: const Text("Cancel"),
               onPressed: () {
-                Navigator.pop(context);
+                Navigator.pop(context, null);
               },
             ),
             FilledButton(
               child: const Text("Create"),
               onPressed: () {
-                Navigator.pop(context);
+                Navigator.pop(context, textController.text);
               },
             ),
           ],
