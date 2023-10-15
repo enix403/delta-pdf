@@ -1,8 +1,11 @@
+import 'package:deltapdf/datastore/datastore.dart';
 import 'package:flutter/material.dart';
 
 import './app.dart';
 
-void main() {
+void main() async  {
+  WidgetsFlutterBinding.ensureInitialized();
+  await AppDataStore.init();
   runApp(const Root());
 }
 

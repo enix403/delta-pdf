@@ -1,10 +1,30 @@
-import 'package:deltapdf/dto/item_type.dart';
+import 'package:deltapdf/dto/item_kind.dart';
 import 'package:flutter/material.dart';
 
-class GridCatalogueItem extends StatelessWidget {
-  final ItemType itemType;
+class GridDirectoryView extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return SliverGrid(
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        childAspectRatio: 1,
+        crossAxisCount: 2,
+      ),
+      delegate: SliverChildBuilderDelegate(
+        (context, index) {
+          return GridDirectoryItem(
+            itemType: DirectoryItemKind.Folder,
+          );
+        },
+        childCount: 30,
+      ),
+    );
+  }
+}
 
-  const GridCatalogueItem({super.key, required this.itemType});
+class GridDirectoryItem extends StatelessWidget {
+  final DirectoryItemKind itemType;
+
+  const GridDirectoryItem({super.key, required this.itemType});
 
   @override
   Widget build(BuildContext context) {
@@ -18,7 +38,7 @@ class GridCatalogueItem extends StatelessWidget {
           Icon(
             //Icons.folder,
             //Icons.article,
-            itemType == ItemType.Folder ? Icons.folder : Icons.article,
+            itemType == DirectoryItemKind.Folder ? Icons.folder : Icons.article,
             size: 132,
             //color: Color(0xAA6F2219),
             color: Color(0xAA6A371C),

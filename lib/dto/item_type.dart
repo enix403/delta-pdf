@@ -1,1 +1,0 @@
-enum ItemType { Folder, File }

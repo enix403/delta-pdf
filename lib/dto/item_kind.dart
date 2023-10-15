@@ -1,0 +1,4 @@
+enum DirectoryItemKind {
+  File,
+  Folder
+}

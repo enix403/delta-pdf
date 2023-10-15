@@ -1,8 +1,10 @@
-import 'package:flutter/cupertino.dart';
+import 'package:deltapdf/datastore/datastore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:deltapdf/datastore/directory_item.dart';
+import 'package:isar/isar.dart';
 
-import './grid_catalogue_view.dart';
+import './grid_directory_view.dart';
 
 class FilesView extends StatefulWidget {
   const FilesView({super.key});
@@ -12,6 +14,17 @@ class FilesView extends StatefulWidget {
 }
 
 class _FilesViewState extends State<FilesView> {
+  late Future<List<DirectoryItem>> items;
+
+  @override
+  void initState() async {
+    // TODO: implement initState
+    super.initState();
+
+    final isar = await AppDataStore.getIsar();
+    items = isar.collection<DirectoryItem>().where().findAll();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -73,7 +86,7 @@ class _FilesViewState extends State<FilesView> {
   Widget _buildGridView() {
     return SliverPadding(
       padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 0),
-      sliver: GridCatalogueView(),
+      sliver: GridDirectoryView(),
     );
   }
 
@@ -88,7 +101,6 @@ class _FilesViewState extends State<FilesView> {
 }
 
 class CreateItemModal extends StatelessWidget {
-
   const CreateItemModal({super.key});
 
   @override
