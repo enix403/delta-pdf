@@ -11,16 +11,18 @@ class GridDirectoryView extends StatelessWidget {
       ),
       delegate: SliverChildBuilderDelegate(
         (context, index) {
-          return GridDirectoryItem(
-            itemType: DirectoryItemKind.Folder,
-          );
+          //return GridDirectoryItem(
+            //itemType: DirectoryItemKind.Folder,
+          //);
+          return null;
         },
-        childCount: 30,
+        //childCount: 30,
       ),
     );
   }
 }
 
+/*
 class GridDirectoryItem extends StatelessWidget {
   final DirectoryItemKind itemType;
 
@@ -68,3 +70,4 @@ class GridDirectoryItem extends StatelessWidget {
     );
   }
 }
+*/
