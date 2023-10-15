@@ -51,7 +51,7 @@ class ExploreFolderView extends StatefulWidget {
   final String folderTitle;
   final Isar isar;
 
-  ExploreFolderView({
+  const ExploreFolderView({
     super.key,
     required this.parentId,
     required this.folderTitle,
@@ -63,11 +63,15 @@ class ExploreFolderView extends StatefulWidget {
 }
 
 class _ExploreFolderViewState extends State<ExploreFolderView> {
-  late final Future<List<DirectoryItem>> items;
+  late Future<List<DirectoryItem>> items;
 
   @override
   void initState() {
     super.initState();
+    refreshItems();
+  }
+
+  void refreshItems() {
     final col = widget.isar.collection<DirectoryItem>();
     items = col.where().parentIdEqualTo(widget.parentId).findAll();
   }
@@ -89,19 +93,19 @@ class _ExploreFolderViewState extends State<ExploreFolderView> {
           FutureBuilder(
             future: items,
             builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return const SliverToBoxAdapter(
-                  child: Padding(
-                    padding: EdgeInsets.only(top: 64.0),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [CircularProgressIndicator()],
-                    ),
-                  ),
-                );
+              if (snapshot.connectionState == ConnectionState.done) {
+                return _buildItems(snapshot.data!);
               }
 
-              return _buildItems();
+              return const SliverToBoxAdapter(
+                child: Padding(
+                  padding: EdgeInsets.only(top: 64.0),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [CircularProgressIndicator()],
+                  ),
+                ),
+              );
             },
           ),
           // bottom padding
@@ -122,17 +126,17 @@ class _ExploreFolderViewState extends State<ExploreFolderView> {
     );
   }
 
-  Widget _buildItems() {
+  Widget _buildItems(List<DirectoryItem> items) {
     return SliverPadding(
       padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 0),
-      sliver: GridDirectoryView(),
+      sliver: GridDirectoryView(items: items),
     );
   }
 
   void _onCreateItemPressed(BuildContext context) {
     showModalBottomSheet(
       context: context,
-      builder: (_modalContext) {
+      builder: (_) {
         return CreateItemModal(
           createFolder: (name) async {
             final newItem = DirectoryItem()
@@ -143,6 +147,8 @@ class _ExploreFolderViewState extends State<ExploreFolderView> {
             await isar.writeTxn(() async {
               await isar.collection<DirectoryItem>().put(newItem);
             });
+
+            refreshItems();
 
             if (!context.mounted) return;
 

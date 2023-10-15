@@ -1,32 +1,33 @@
 import 'package:deltapdf/dto/item_kind.dart';
+import 'package:deltapdf/datastore/directory_item.dart';
 import 'package:flutter/material.dart';
 
 class GridDirectoryView extends StatelessWidget {
+  final List<DirectoryItem> items;
+
+  const GridDirectoryView({super.key, required this.items});
+
   @override
   Widget build(BuildContext context) {
-    return SliverGrid(
+    return SliverGrid.builder(
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         childAspectRatio: 1,
         crossAxisCount: 2,
       ),
-      delegate: SliverChildBuilderDelegate(
-        (context, index) {
-          //return GridDirectoryItem(
-            //itemType: DirectoryItemKind.Folder,
-          //);
-          return null;
-        },
-        //childCount: 30,
-      ),
+      itemBuilder: (context, index) {
+        return GridDirectoryItem(
+          item: items[index],
+        );
+      },
+      itemCount: items.length,
     );
   }
 }
 
-/*
 class GridDirectoryItem extends StatelessWidget {
-  final DirectoryItemKind itemType;
+  final DirectoryItem item;
 
-  const GridDirectoryItem({super.key, required this.itemType});
+  const GridDirectoryItem({super.key, required this.item});
 
   @override
   Widget build(BuildContext context) {
@@ -38,9 +39,7 @@ class GridDirectoryItem extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Icon(
-            //Icons.folder,
-            //Icons.article,
-            itemType == DirectoryItemKind.Folder ? Icons.folder : Icons.article,
+            item.kind == DirectoryItemKind.Folder ? Icons.folder : Icons.article,
             size: 132,
             //color: Color(0xAA6F2219),
             color: Color(0xAA6A371C),
@@ -54,8 +53,8 @@ class GridDirectoryItem extends StatelessWidget {
               Flexible(
                 child: Padding(
                   padding: const EdgeInsets.only(left: 16.0, right: 16.0),
-                  child: const Text(
-                    "Distance between line and plane",
+                  child: Text(
+                    item.name,
                     textAlign: TextAlign.center,
                     overflow: TextOverflow.ellipsis,
                     maxLines: 2,
@@ -70,4 +69,21 @@ class GridDirectoryItem extends StatelessWidget {
     );
   }
 }
+
+
+/*
+return SliverGrid(
+  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+    childAspectRatio: 1,
+    crossAxisCount: 2,
+  ),
+  delegate: SliverChildBuilderDelegate(
+    (context, index) {
+      return GridDirectoryItem(
+        itemType: DirectoryItemKind.Folder,
+      );
+    },
+    childCount: items.length,
+  ),
+);
 */
