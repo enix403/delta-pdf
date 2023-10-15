@@ -73,7 +73,9 @@ class _ExploreFolderViewState extends State<ExploreFolderView> {
 
   void refreshItems() {
     final col = widget.isar.collection<DirectoryItem>();
-    items = col.where().parentIdEqualTo(widget.parentId).findAll();
+    setState(() {
+      items = col.where().parentIdEqualTo(widget.parentId).findAll();
+    });
   }
 
   @override
@@ -85,16 +87,29 @@ class _ExploreFolderViewState extends State<ExploreFolderView> {
           FutureBuilder(
             future: items,
             builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.done &&
-                  snapshot.hasData) return SortControls();
+              if (snapshot.connectionState == ConnectionState.done) {
+                return SortControls();
+              }
               return SliverToBoxAdapter(child: SizedBox.shrink());
             },
+          ),
+          SliverToBoxAdapter(
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                FilledButton(
+                    onPressed: () {
+                      refreshItems();
+                    },
+                    child: const Text("Refresh")),
+              ],
+            ),
           ),
           FutureBuilder(
             future: items,
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.done) {
-                return _buildItems(snapshot.data!);
+                return _buildItems(context, snapshot.data!);
               }
 
               return const SliverToBoxAdapter(
@@ -126,10 +141,26 @@ class _ExploreFolderViewState extends State<ExploreFolderView> {
     );
   }
 
-  Widget _buildItems(List<DirectoryItem> items) {
+  Widget _buildItems(BuildContext context, List<DirectoryItem> items) {
     return SliverPadding(
       padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 0),
-      sliver: GridDirectoryView(items: items),
+      sliver: GridDirectoryView(
+        items: items,
+        onItemTapped: (item) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) {
+                return ExploreFolderView(
+                  parentId: item.id,
+                  folderTitle: item.name,
+                  isar: widget.isar,
+                );
+              },
+            ),
+          );
+        },
+      ),
     );
   }
 

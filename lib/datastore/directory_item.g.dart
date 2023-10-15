@@ -90,6 +90,7 @@ DirectoryItem _directoryItemDeserialize(
   Map<Type, List<int>> allOffsets,
 ) {
   final object = DirectoryItem();
+  object.id = id;
   object.kind =
       _DirectoryItemkindValueEnumMap[reader.readByteOrNull(offsets[0])] ??
           DirectoryItemKind.File;
@@ -135,7 +136,9 @@ List<IsarLinkBase<dynamic>> _directoryItemGetLinks(DirectoryItem object) {
 }
 
 void _directoryItemAttach(
-    IsarCollection<dynamic> col, Id id, DirectoryItem object) {}
+    IsarCollection<dynamic> col, Id id, DirectoryItem object) {
+  object.id = id;
+}
 
 extension DirectoryItemQueryWhereSort
     on QueryBuilder<DirectoryItem, DirectoryItem, QWhere> {

@@ -5,7 +5,7 @@ part 'directory_item.g.dart';
 
 @collection
 class DirectoryItem {
-  final id = Isar.autoIncrement;
+  Id id = Isar.autoIncrement;
 
   @Enumerated(EnumType.ordinal)
   late DirectoryItemKind kind;

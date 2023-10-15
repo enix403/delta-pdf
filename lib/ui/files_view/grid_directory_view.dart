@@ -5,7 +5,13 @@ import 'package:flutter/material.dart';
 class GridDirectoryView extends StatelessWidget {
   final List<DirectoryItem> items;
 
-  const GridDirectoryView({super.key, required this.items});
+  final void Function(DirectoryItem item) onItemTapped;
+
+  const GridDirectoryView({
+    super.key,
+    required this.items,
+    required this.onItemTapped,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -15,8 +21,15 @@ class GridDirectoryView extends StatelessWidget {
         crossAxisCount: 2,
       ),
       itemBuilder: (context, index) {
-        return GridDirectoryItem(
-          item: items[index],
+        final item = items[index];
+        return GestureDetector(
+          onTap: () {
+            //print("Tapped ${item.id}");
+            onItemTapped(item);
+          },
+          child: GridDirectoryItem(
+            item: item,
+          ),
         );
       },
       itemCount: items.length,
@@ -39,7 +52,9 @@ class GridDirectoryItem extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Icon(
-            item.kind == DirectoryItemKind.Folder ? Icons.folder : Icons.article,
+            item.kind == DirectoryItemKind.Folder
+                ? Icons.folder
+                : Icons.article,
             size: 132,
             //color: Color(0xAA6F2219),
             color: Color(0xAA6A371C),
