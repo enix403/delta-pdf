@@ -17,30 +17,44 @@ class FilesView extends StatefulWidget {
 }
 
 class FilesViewState extends State<FilesView> {
-  late final Future<Isar> isar;
+  late final Future<Isar> isarFuture;
 
   @override
   void initState() {
     super.initState();
-    isar = AppDataStore.getIsar();
+    isarFuture = AppDataStore.getIsar();
   }
 
   @override
   Widget build(BuildContext context) {
-    return ExploreFolderView(parentId: null, folderTitle: "");
+    //return ExploreFolderView(parentId: null, folderTitle: "");
+    return FutureBuilder(
+      future: isarFuture,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        return ExploreFolderView(
+          parentId: null,
+          folderTitle: "",
+          isar: snapshot.data!,
+        );
+      },
+    );
   }
 }
 
 class ExploreFolderView extends StatefulWidget {
   final int? parentId;
   final String folderTitle;
-  late final Isar isar;
+  final Isar isar;
 
   ExploreFolderView({
     super.key,
     required this.parentId,
     required this.folderTitle,
-    //required this.isar,
+    required this.isar,
   });
 
   @override
@@ -63,8 +77,32 @@ class _ExploreFolderViewState extends State<ExploreFolderView> {
       body: CustomScrollView(
         slivers: [
           SearchAppBarSiver(isRoot: widget.parentId == null),
-          SortControls(),
-          _buildGridView(),
+          FutureBuilder(
+            future: items,
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.done &&
+                  snapshot.hasData) return SortControls();
+              return SliverToBoxAdapter(child: SizedBox.shrink());
+            },
+          ),
+          FutureBuilder(
+            future: items,
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const SliverToBoxAdapter(
+                  child: Padding(
+                    padding: EdgeInsets.only(top: 64.0),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [CircularProgressIndicator()],
+                    ),
+                  ),
+                );
+              }
+
+              return _buildItems();
+            },
+          ),
           // bottom padding
           const SliverToBoxAdapter(
             child: SizedBox(
@@ -83,7 +121,7 @@ class _ExploreFolderViewState extends State<ExploreFolderView> {
     );
   }
 
-  Widget _buildGridView() {
+  Widget _buildItems() {
     return SliverPadding(
       padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 0),
       sliver: GridDirectoryView(),
