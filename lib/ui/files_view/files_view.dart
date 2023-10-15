@@ -1,3 +1,4 @@
+import 'package:deltapdf/dto/item_kind.dart';
 import 'package:flutter/material.dart';
 import 'package:isar/isar.dart';
 
@@ -131,8 +132,26 @@ class _ExploreFolderViewState extends State<ExploreFolderView> {
   void _onCreateItemPressed(BuildContext context) {
     showModalBottomSheet(
       context: context,
-      builder: (BuildContext context) {
-        return CreateItemModal();
+      builder: (_modalContext) {
+        return CreateItemModal(
+          createFolder: (name) async {
+            final newItem = DirectoryItem()
+              ..kind = DirectoryItemKind.Folder
+              ..name = name
+              ..parentId = widget.parentId;
+            final isar = widget.isar;
+            await isar.writeTxn(() async {
+              await isar.collection<DirectoryItem>().put(newItem);
+            });
+
+            if (!context.mounted) return;
+
+            ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+              content: Text("Folder \"$name\" created."),
+              showCloseIcon: true,
+            ));
+          },
+        );
       },
     );
   }

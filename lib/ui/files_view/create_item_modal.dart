@@ -1,7 +1,15 @@
+import 'package:deltapdf/datastore/datastore.dart';
 import 'package:flutter/material.dart';
 
 class CreateItemModal extends StatelessWidget {
-  const CreateItemModal({super.key});
+  //final BuildContext parentContext;
+  final void Function(String name)? createFolder;
+
+  const CreateItemModal({
+    super.key,
+    //required this.parentContext,
+    this.createFolder,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -43,6 +51,9 @@ class CreateItemModal extends StatelessWidget {
 
     // ignore: unused_local_variable
     final value = await _showFolderNameDialog(context);
+    if (value == null) return;
+
+    createFolder?.call(value);
   }
 
   Future<String?> _showFolderNameDialog(BuildContext context) {
