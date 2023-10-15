@@ -13,5 +13,6 @@ class DirectoryItem {
   late String name;
 
   //final children = IsarLinks<DirectoryItem>();
+  @Index()
   int? parentId;
 }

@@ -39,7 +39,21 @@ const DirectoryItemSchema = CollectionSchema(
   deserialize: _directoryItemDeserialize,
   deserializeProp: _directoryItemDeserializeProp,
   idName: r'id',
-  indexes: {},
+  indexes: {
+    r'parentId': IndexSchema(
+      id: -809199838039056779,
+      name: r'parentId',
+      unique: false,
+      replace: false,
+      properties: [
+        IndexPropertySchema(
+          name: r'parentId',
+          type: IndexType.value,
+          caseSensitive: false,
+        )
+      ],
+    )
+  },
   links: {},
   embeddedSchemas: {},
   getId: _directoryItemGetId,
@@ -130,6 +144,14 @@ extension DirectoryItemQueryWhereSort
       return query.addWhereClause(const IdWhereClause.any());
     });
   }
+
+  QueryBuilder<DirectoryItem, DirectoryItem, QAfterWhere> anyParentId() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(
+        const IndexWhereClause.any(indexName: r'parentId'),
+      );
+    });
+  }
 }
 
 extension DirectoryItemQueryWhere
@@ -198,6 +220,120 @@ extension DirectoryItemQueryWhere
         lower: lowerId,
         includeLower: includeLower,
         upper: upperId,
+        includeUpper: includeUpper,
+      ));
+    });
+  }
+
+  QueryBuilder<DirectoryItem, DirectoryItem, QAfterWhereClause>
+      parentIdIsNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(IndexWhereClause.equalTo(
+        indexName: r'parentId',
+        value: [null],
+      ));
+    });
+  }
+
+  QueryBuilder<DirectoryItem, DirectoryItem, QAfterWhereClause>
+      parentIdIsNotNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(IndexWhereClause.between(
+        indexName: r'parentId',
+        lower: [null],
+        includeLower: false,
+        upper: [],
+      ));
+    });
+  }
+
+  QueryBuilder<DirectoryItem, DirectoryItem, QAfterWhereClause> parentIdEqualTo(
+      int? parentId) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(IndexWhereClause.equalTo(
+        indexName: r'parentId',
+        value: [parentId],
+      ));
+    });
+  }
+
+  QueryBuilder<DirectoryItem, DirectoryItem, QAfterWhereClause>
+      parentIdNotEqualTo(int? parentId) {
+    return QueryBuilder.apply(this, (query) {
+      if (query.whereSort == Sort.asc) {
+        return query
+            .addWhereClause(IndexWhereClause.between(
+              indexName: r'parentId',
+              lower: [],
+              upper: [parentId],
+              includeUpper: false,
+            ))
+            .addWhereClause(IndexWhereClause.between(
+              indexName: r'parentId',
+              lower: [parentId],
+              includeLower: false,
+              upper: [],
+            ));
+      } else {
+        return query
+            .addWhereClause(IndexWhereClause.between(
+              indexName: r'parentId',
+              lower: [parentId],
+              includeLower: false,
+              upper: [],
+            ))
+            .addWhereClause(IndexWhereClause.between(
+              indexName: r'parentId',
+              lower: [],
+              upper: [parentId],
+              includeUpper: false,
+            ));
+      }
+    });
+  }
+
+  QueryBuilder<DirectoryItem, DirectoryItem, QAfterWhereClause>
+      parentIdGreaterThan(
+    int? parentId, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(IndexWhereClause.between(
+        indexName: r'parentId',
+        lower: [parentId],
+        includeLower: include,
+        upper: [],
+      ));
+    });
+  }
+
+  QueryBuilder<DirectoryItem, DirectoryItem, QAfterWhereClause>
+      parentIdLessThan(
+    int? parentId, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(IndexWhereClause.between(
+        indexName: r'parentId',
+        lower: [],
+        upper: [parentId],
+        includeUpper: include,
+      ));
+    });
+  }
+
+  QueryBuilder<DirectoryItem, DirectoryItem, QAfterWhereClause> parentIdBetween(
+    int? lowerParentId,
+    int? upperParentId, {
+    bool includeLower = true,
+    bool includeUpper = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(IndexWhereClause.between(
+        indexName: r'parentId',
+        lower: [lowerParentId],
+        includeLower: includeLower,
+        upper: [upperParentId],
         includeUpper: includeUpper,
       ));
     });
