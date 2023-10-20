@@ -3,52 +3,54 @@ import 'package:flutter/services.dart';
 
 class SearchAppBarSiver extends StatelessWidget {
   final bool isRoot;
+  final String? folderTitle;
 
-  SearchAppBarSiver({
-    super.key,
-    required this.isRoot,
-  });
+  SearchAppBarSiver({super.key, required this.isRoot, this.folderTitle});
 
   final TextEditingController _searchQueryController = TextEditingController();
 
+  static Color _barFillColor(BuildContext context) =>
+      Theme.of(context).colorScheme.primaryContainer.withOpacity(0.36);
+
   @override
   Widget build(BuildContext context) {
-    return isRoot ? buildRoot(context) : buildNonRoot(context);
+    final inner = isRoot ? buildRoot(context) : buildNonRoot(context);
+    return SliverPadding(
+      padding: const EdgeInsets.only(top: 8.0),
+      sliver: inner,
+    );
   }
 
   Widget buildNonRoot(BuildContext context) {
-    return SliverPadding(
-      padding: const EdgeInsets.only(top: 8.0),
-      sliver: SliverAppBar(
-        systemOverlayStyle: SystemUiOverlayStyle(
-          statusBarColor: Colors.white,
-          statusBarIconBrightness: Brightness.dark,
-        ),
-        automaticallyImplyLeading: false,
-        scrolledUnderElevation: 0.0,
-        backgroundColor:
-            Theme.of(context).colorScheme.primaryContainer.withOpacity(0.36),
-        floating: true,
+    return SliverAppBar(
+      systemOverlayStyle: SystemUiOverlayStyle(
+        statusBarColor: Colors.white,
+        statusBarIconBrightness: Brightness.dark,
       ),
+      //automaticallyImplyLeading: false,
+      title: Text(folderTitle ?? ""),
+      scrolledUnderElevation: 0.0,
+      titleSpacing: 0,
+      titleTextStyle:
+          Theme.of(context).textTheme.titleLarge?.copyWith(fontSize: 18.0),
+      backgroundColor: _barFillColor(context),
+      floating: true,
     );
   }
 
   Widget buildRoot(BuildContext context) {
-    // TODO: implement build
-    return SliverPadding(
-      padding: const EdgeInsets.only(top: 8.0),
-      sliver: SliverAppBar(
-        systemOverlayStyle: SystemUiOverlayStyle(
-          statusBarColor: Colors.white,
-          statusBarIconBrightness: Brightness.dark,
-        ),
-        automaticallyImplyLeading: false,
-        scrolledUnderElevation: 0.0,
-        backgroundColor: Colors.transparent,
-        title: TextField(
-          controller: _searchQueryController,
-          autofocus: false,
-          decoration: InputDecoration(
+    return SliverAppBar(
+      systemOverlayStyle: SystemUiOverlayStyle(
+        statusBarColor: Colors.white,
+        statusBarIconBrightness: Brightness.dark,
+      ),
+      automaticallyImplyLeading: false,
+      scrolledUnderElevation: 0.0,
+      backgroundColor: Colors.transparent,
+      title: TextField(
+        controller: _searchQueryController,
+        autofocus: false,
+        decoration: InputDecoration(
             hintText: "Search",
             hintStyle: TextStyle(color: const Color(0xFF8A8A8A)),
             border: OutlineInputBorder(
@@ -56,10 +58,9 @@ class SearchAppBarSiver extends StatelessWidget {
               borderRadius: BorderRadius.circular(64),
             ),
             filled: true,
-          ),
-        ),
-        floating: true,
+            fillColor: _barFillColor(context)),
       ),
+      floating: true,
     );
   }
 }

@@ -36,10 +36,16 @@ class FilesViewState extends State<FilesView> {
           return const Center(child: CircularProgressIndicator());
         }
 
-        return ExploreFolderView(
+        final exploreRoot = ExploreFolderView(
           parentId: null,
           folderTitle: "",
           isar: snapshot.data!,
+        );
+
+        //return exploreRoot;
+        return Navigator(
+          onGenerateInitialRoutes: (_, _0) =>
+              [MaterialPageRoute(builder: (_) => exploreRoot)],
         );
       },
     );
@@ -83,7 +89,10 @@ class _ExploreFolderViewState extends State<ExploreFolderView> {
     return Scaffold(
       body: CustomScrollView(
         slivers: [
-          SearchAppBarSiver(isRoot: widget.parentId == null),
+          SearchAppBarSiver(
+            isRoot: widget.parentId == null,
+            folderTitle: widget.folderTitle,
+          ),
           FutureBuilder(
             future: items,
             builder: (context, snapshot) {
@@ -147,8 +156,7 @@ class _ExploreFolderViewState extends State<ExploreFolderView> {
       sliver: GridDirectoryView(
         items: items,
         onItemTapped: (item) {
-          Navigator.push(
-            context,
+          Navigator.of(context).push(
             MaterialPageRoute(
               builder: (context) {
                 return ExploreFolderView(
@@ -167,6 +175,7 @@ class _ExploreFolderViewState extends State<ExploreFolderView> {
   void _onCreateItemPressed(BuildContext context) {
     showModalBottomSheet(
       context: context,
+      useRootNavigator: true,
       builder: (_) {
         return CreateItemModal(
           createFolder: (name) async {
