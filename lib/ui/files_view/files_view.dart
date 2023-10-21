@@ -19,6 +19,7 @@ class FilesView extends StatefulWidget {
 
 class FilesViewState extends State<FilesView> {
   late final Future<Isar> isarFuture;
+  final navigatorKey = GlobalKey<NavigatorState>();
 
   @override
   void initState() {
@@ -28,7 +29,6 @@ class FilesViewState extends State<FilesView> {
 
   @override
   Widget build(BuildContext context) {
-    //return ExploreFolderView(parentId: null, folderTitle: "");
     return FutureBuilder(
       future: isarFuture,
       builder: (context, snapshot) {
@@ -36,16 +36,29 @@ class FilesViewState extends State<FilesView> {
           return const Center(child: CircularProgressIndicator());
         }
 
-        final exploreRoot = ExploreFolderView(
-          parentId: null,
-          folderTitle: "",
-          isar: snapshot.data!,
-        );
-
-        //return exploreRoot;
-        return Navigator(
-          onGenerateInitialRoutes: (_, _0) =>
-              [MaterialPageRoute(builder: (_) => exploreRoot)],
+        return WillPopScope(
+          onWillPop: () async {
+            // If the inner navigator can be popped, then
+            // pop that one instead
+            if (navigatorKey.currentState != null &&
+                navigatorKey.currentState!.canPop()) {
+              navigatorKey.currentState!.pop();
+              return false;
+            }
+            return true;
+          },
+          child: Navigator(
+            key: navigatorKey,
+            onGenerateInitialRoutes: (_, _0) => [
+              MaterialPageRoute(
+                builder: (_) => ExploreFolderView(
+                  parentId: null,
+                  folderTitle: "",
+                  isar: snapshot.data!,
+                ),
+              ),
+            ],
+          ),
         );
       },
     );
@@ -110,7 +123,7 @@ class _ExploreFolderViewState extends State<ExploreFolderView> {
                     onPressed: () {
                       refreshItems();
                     },
-                    child: const Text("Refresh")),
+                    child: const Text("Refresh"),),
               ],
             ),
           ),

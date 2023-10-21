@@ -2,6 +2,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import 'ui/files_view/files_view.dart';
+import 'ui/recents_view/recents_view.dart';
 
 class App extends StatefulWidget {
   @override
@@ -14,7 +15,11 @@ class _AppState extends State<App> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: FilesView(),
+      body: [
+        FilesView(),
+        RecentsView(),
+        RecentsView(),
+      ][currentViewIndex],
       bottomNavigationBar: _buildNavigationBar(),
     );
   }
