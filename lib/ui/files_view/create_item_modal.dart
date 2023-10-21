@@ -1,11 +1,13 @@
-import 'package:deltapdf/datastore/datastore.dart';
+import 'dart:io';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
 class CreateItemModal extends StatelessWidget {
   //final BuildContext parentContext;
   final void Function(String name)? createFolder;
 
-  const CreateItemModal({
+  CreateItemModal({
     super.key,
     //required this.parentContext,
     this.createFolder,
@@ -24,7 +26,7 @@ class CreateItemModal extends StatelessWidget {
               IconButton.outlined(
                 icon: const Icon(Icons.folder_open),
                 onPressed: () {
-                  _onCreaterFolderPressed(context);
+                  _onCreateFolderPressed(context);
                 },
               ),
               const Text("Folder")
@@ -36,7 +38,9 @@ class CreateItemModal extends StatelessWidget {
             children: [
               IconButton.outlined(
                 icon: const Icon(Icons.article),
-                onPressed: () {},
+                onPressed: () {
+                  _onCreateFilePressed(context);
+                },
               ),
               const Text("File")
             ],
@@ -46,7 +50,7 @@ class CreateItemModal extends StatelessWidget {
     );
   }
 
-  Future<void> _onCreaterFolderPressed(BuildContext context) async {
+  void _onCreateFolderPressed(BuildContext context) async {
     Navigator.pop(context);
 
     // ignore: unused_local_variable
@@ -90,5 +94,30 @@ class CreateItemModal extends StatelessWidget {
         );
       },
     );
+  }
+
+  void _onCreateFilePressed(BuildContext context) async {
+    Navigator.pop(context);
+    _showFilePicker(context);
+  }
+
+  Future<void> _showFilePicker(BuildContext context) async {
+    FilePickerResult? result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ["pdf"]
+    );
+
+    if (result == null)
+      return;
+
+    final platformFile = result.files.first;
+    print("================================================================================");
+    print(platformFile.name);
+    print(platformFile.path);
+    print(platformFile.extension);
+    print(platformFile.identifier);
+
+    final file = File(platformFile.path!);
+    print(file.lengthSync());
   }
 }

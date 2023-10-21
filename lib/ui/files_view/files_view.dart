@@ -1,9 +1,12 @@
 import 'package:deltapdf/dto/item_kind.dart';
+import 'package:device_info_plus/device_info_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:isar/isar.dart';
 
 import 'package:deltapdf/datastore/datastore.dart';
 import 'package:deltapdf/datastore/directory_item.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 import 'grid_directory_view.dart';
 import 'search_app_bar.dart';
@@ -120,10 +123,11 @@ class _ExploreFolderViewState extends State<ExploreFolderView> {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 FilledButton(
-                    onPressed: () {
-                      refreshItems();
-                    },
-                    child: const Text("Refresh"),),
+                  onPressed: () {
+                    refreshItems();
+                  },
+                  child: const Text("Refresh"),
+                ),
               ],
             ),
           ),
@@ -185,7 +189,14 @@ class _ExploreFolderViewState extends State<ExploreFolderView> {
     );
   }
 
-  void _onCreateItemPressed(BuildContext context) {
+  void _onCreateItemPressed(BuildContext context) async {
+    final hasPermission = await PermissionUtils.externalStoragePermission(context);
+    if (!hasPermission)
+      return;
+
+    if (!context.mounted)
+      return;
+
     showModalBottomSheet(
       context: context,
       useRootNavigator: true,
@@ -213,5 +224,43 @@ class _ExploreFolderViewState extends State<ExploreFolderView> {
         );
       },
     );
+
+    print("***********************************************************");
+    print((await getApplicationSupportDirectory()).path);
+    print((await getApplicationDocumentsDirectory()).path);
+    print((await getExternalStorageDirectory())?.path);
+    print((await getExternalStorageDirectories()));
+    print((await getDownloadsDirectory()));
+  }
+}
+
+class PermissionUtils {
+  // This func is added to access scope storage to export csv files
+  static Future<bool> externalStoragePermission(BuildContext context) async {
+    final androidVersion = await DeviceInfoPlugin().androidInfo;
+
+    if ((androidVersion.version.sdkInt ?? 0) >= 30) {
+      return await checkManageStoragePermission(context);
+    } else {
+      return await checkStoragePermission(context);
+    }
+  }
+
+  static Future<bool> checkManageStoragePermission(BuildContext context) async {
+    return (await Permission.manageExternalStorage.isGranted ||
+        await Permission.manageExternalStorage.request().isGranted);
+  }
+
+  static Future<bool> checkStoragePermission(
+    BuildContext context, {
+    String? storageTitle,
+    String? storageSubMessage,
+  }) async {
+    if (await Permission.storage.isGranted ||
+        await Permission.storage.request().isGranted) {
+      return true;
+    } else {
+      return false;
+    }
   }
 }
