@@ -1,5 +1,7 @@
+import 'dart:io';
 import 'package:deltapdf/dto/item_kind.dart';
 import 'package:device_info_plus/device_info_plus.dart';
+import 'package:external_path/external_path.dart';
 import 'package:flutter/material.dart';
 import 'package:isar/isar.dart';
 
@@ -190,12 +192,13 @@ class _ExploreFolderViewState extends State<ExploreFolderView> {
   }
 
   void _onCreateItemPressed(BuildContext context) async {
-    final hasPermission = await PermissionUtils.externalStoragePermission(context);
-    if (!hasPermission)
-      return;
+    final hasPermission =
+        await PermissionUtils.externalStoragePermission(context);
+    if (!hasPermission) return;
 
-    if (!context.mounted)
-      return;
+    await DocumentTree.ensureTreeRoot();
+
+    if (!context.mounted) return;
 
     showModalBottomSheet(
       context: context,
@@ -224,13 +227,53 @@ class _ExploreFolderViewState extends State<ExploreFolderView> {
         );
       },
     );
+  }
+}
 
-    print("***********************************************************");
-    print((await getApplicationSupportDirectory()).path);
-    print((await getApplicationDocumentsDirectory()).path);
-    print((await getExternalStorageDirectory())?.path);
-    print((await getExternalStorageDirectories()));
-    print((await getDownloadsDirectory()));
+class RootStorageNotFound implements Exception {}
+
+class DocumentTree {
+  static Future<String> identifyInternalStorage() async {
+    List<String> storagePaths =
+        await ExternalPath.getExternalStorageDirectories();
+
+    if (storagePaths.isEmpty) throw RootStorageNotFound();
+
+    //List<int> scores = List.filled(storagePaths.length, 0);
+    int maxIndex = -1;
+    double maxScore = double.negativeInfinity;
+    for (int i = 0; i < storagePaths.length; ++i) {
+      double score = 0;
+      String path = storagePaths[i];
+      if (path.contains("emulated"))
+        //scores[i]++;
+        ++score;
+
+      if (path.contains("sdcard"))
+        //scores[i]--;
+        --score;
+
+      if (score > maxScore)
+      {
+        maxScore = score;
+        maxIndex = i;
+      }
+    }
+
+    return storagePaths[maxIndex];
+  }
+
+  static Future<void> ensureTreeRoot() async {
+    String internalRoot = await identifyInternalStorage();
+    const TREE_ROOT_NAME = "DeltaPDFDocs";
+
+    if (internalRoot.endsWith('/')) {
+      internalRoot = internalRoot.substring(0, internalRoot.length - 1);
+    }
+
+    final treeTootPath = "$internalRoot/$TREE_ROOT_NAME";
+    print("treeTootPath: $treeTootPath");
+    Directory(treeTootPath).create(recursive: true);
   }
 }
 
