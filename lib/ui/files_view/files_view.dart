@@ -60,6 +60,7 @@ class FilesViewState extends State<FilesView> {
                   parentId: null,
                   folderTitle: "",
                   isar: snapshot.data!,
+                  path: [],
                 ),
               ),
             ],
@@ -72,6 +73,7 @@ class FilesViewState extends State<FilesView> {
 
 class ExploreFolderView extends StatefulWidget {
   final int? parentId;
+  final List<String> path;
   final String folderTitle;
   final Isar isar;
 
@@ -80,6 +82,7 @@ class ExploreFolderView extends StatefulWidget {
     required this.parentId,
     required this.folderTitle,
     required this.isar,
+    required this.path,
   });
 
   @override
@@ -175,6 +178,8 @@ class _ExploreFolderViewState extends State<ExploreFolderView> {
       sliver: GridDirectoryView(
         items: items,
         onItemTapped: (item) {
+          if (item.kind == DirectoryItemKind.File) return;
+
           Navigator.of(context).push(
             MaterialPageRoute(
               builder: (context) {
@@ -182,6 +187,7 @@ class _ExploreFolderViewState extends State<ExploreFolderView> {
                   parentId: item.id,
                   folderTitle: item.name,
                   isar: widget.isar,
+                  path: [...widget.path, item.name],
                 );
               },
             ),
@@ -189,6 +195,18 @@ class _ExploreFolderViewState extends State<ExploreFolderView> {
         },
       ),
     );
+  }
+
+  Future<bool> isNameInvalid(String name) async {
+    final itemsList = await items;
+    return itemsList.any((item) => item.name == name);
+  }
+
+  void onNameConflict(BuildContext context, String name) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text("Item \"$name\" already exists. Please choose another name."),
+      showCloseIcon: true,
+    ));
   }
 
   void _onCreateItemPressed(BuildContext context) async {
@@ -206,8 +224,49 @@ class _ExploreFolderViewState extends State<ExploreFolderView> {
       builder: (_) {
         return CreateItemModal(
           createFolder: (name) async {
+            if ((await isNameInvalid(name)))
+              return onNameConflict(context, name);
+            // Add entry to the database
             final newItem = DirectoryItem()
               ..kind = DirectoryItemKind.Folder
+              ..name = name
+              ..parentId = widget.parentId;
+            final isar = widget.isar;
+            await isar.writeTxn(() async {
+              await isar.collection<DirectoryItem>().put(newItem);
+            });
+
+            // Create the actual directory
+            final dirPath = DocumentTree.resolveFromRoot(widget.path + [name]);
+            Directory(dirPath).create(recursive: true);
+
+            refreshItems();
+
+            if (!context.mounted) return;
+            ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+              content: Text("Folder \"$name\" created."),
+              showCloseIcon: true,
+            ));
+          },
+          createFile: (pltfile) async {
+            final name = pltfile.name;
+            if ((await isNameInvalid(name)))
+              return onNameConflict(context, name);
+
+            // copy to tree root
+            print("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
+            print("createFile: " + (pltfile.path ?? ""));
+            print("createFile: " + (pltfile.name ?? ""));
+            print("createFile: " + (pltfile.extension ?? ""));
+
+            final newPath = DocumentTree.resolveFromRoot(widget.path + [name]);
+            final nativeFile = File(pltfile.path!);
+            nativeFile.copySync(newPath);
+            print("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
+
+            // add entry
+            final newItem = DirectoryItem()
+              ..kind = DirectoryItemKind.File
               ..name = name
               ..parentId = widget.parentId;
             final isar = widget.isar;
@@ -218,9 +277,8 @@ class _ExploreFolderViewState extends State<ExploreFolderView> {
             refreshItems();
 
             if (!context.mounted) return;
-
             ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-              content: Text("Folder \"$name\" created."),
+              content: Text("File \"$name\" added."),
               showCloseIcon: true,
             ));
           },
@@ -233,28 +291,35 @@ class _ExploreFolderViewState extends State<ExploreFolderView> {
 class RootStorageNotFound implements Exception {}
 
 class DocumentTree {
+  static String? treeRoot;
+
+  static String getRoot() {
+    if (treeRoot == null) throw new Exception("Tree Root not initialized");
+    return treeRoot!;
+  }
+
+  static String resolveFromRoot(List<String> segments) {
+    final relPath = segments.join('/');
+    final absPath = getRoot() + "/" + relPath;
+    return absPath;
+  }
+
   static Future<String> identifyInternalStorage() async {
     List<String> storagePaths =
         await ExternalPath.getExternalStorageDirectories();
 
     if (storagePaths.isEmpty) throw RootStorageNotFound();
 
-    //List<int> scores = List.filled(storagePaths.length, 0);
     int maxIndex = -1;
     double maxScore = double.negativeInfinity;
     for (int i = 0; i < storagePaths.length; ++i) {
       double score = 0;
       String path = storagePaths[i];
-      if (path.contains("emulated"))
-        //scores[i]++;
-        ++score;
+      if (path.contains("emulated")) ++score;
 
-      if (path.contains("sdcard"))
-        //scores[i]--;
-        --score;
+      if (path.contains("sdcard")) --score;
 
-      if (score > maxScore)
-      {
+      if (score > maxScore) {
         maxScore = score;
         maxIndex = i;
       }
@@ -273,6 +338,7 @@ class DocumentTree {
 
     final treeTootPath = "$internalRoot/$TREE_ROOT_NAME";
     print("treeTootPath: $treeTootPath");
+    treeRoot = treeTootPath;
     Directory(treeTootPath).create(recursive: true);
   }
 }

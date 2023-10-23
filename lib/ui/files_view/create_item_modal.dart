@@ -4,13 +4,13 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
 class CreateItemModal extends StatelessWidget {
-  //final BuildContext parentContext;
   final void Function(String name)? createFolder;
+  final void Function(PlatformFile file)? createFile;
 
   CreateItemModal({
     super.key,
-    //required this.parentContext,
     this.createFolder,
+    this.createFile,
   });
 
   @override
@@ -98,26 +98,24 @@ class CreateItemModal extends StatelessWidget {
 
   void _onCreateFilePressed(BuildContext context) async {
     Navigator.pop(context);
-    _showFilePicker(context);
+    final file = await _showFilePicker(context);
+    if (file == null) return;
+    createFile?.call(file);
   }
 
-  Future<void> _showFilePicker(BuildContext context) async {
-    FilePickerResult? result = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: ["pdf"]
-    );
+  Future<PlatformFile?> _showFilePicker(BuildContext context) async {
+    FilePickerResult? result = await FilePicker.platform
+        .pickFiles(type: FileType.custom, allowedExtensions: ["pdf"]);
 
-    if (result == null)
-      return;
+    return result?.files.firstOrNull;
 
-    final platformFile = result.files.first;
-    print("================================================================================");
-    print(platformFile.name);
-    print(platformFile.path);
-    print(platformFile.extension);
-    print(platformFile.identifier);
-
-    final file = File(platformFile.path!);
-    print(file.lengthSync());
+    // final platformFile = result.files.first;
+    // print("================================================================================");
+    // print(platformFile.name);
+    // print(platformFile.path);
+    // print(platformFile.extension);
+    // print(platformFile.identifier);
+    // final file = File(platformFile.path!);
+    // print(file.lengthSync());
   }
 }
