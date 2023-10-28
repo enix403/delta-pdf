@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import 'ui/files_view/files_view.dart';
 import 'ui/recents_view/recents_view.dart';
+import 'ui/favourites_view/favourites_view.dart';
 
 class App extends StatefulWidget {
   @override
@@ -18,7 +19,7 @@ class _AppState extends State<App> {
       body: [
         FilesView(),
         RecentsView(),
-        RecentsView(),
+        FavouritesView(),
       ][currentViewIndex],
       bottomNavigationBar: _buildNavigationBar(),
     );
