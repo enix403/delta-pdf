@@ -11,9 +11,31 @@ Future<PdfDocument> _loadDummyDocument() async {
   final bytes = await file.readAsBytes();
   final doc = await PdfDocument.openData(bytes);
 
-  await Future.delayed(const Duration(seconds: 4));
+  //await Future.delayed(const Duration(seconds: 4));
 
   return doc;
+}
+
+class LoaderWithText extends StatelessWidget {
+  final String label;
+
+  const LoaderWithText(this.label, {super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Center(child: CircularProgressIndicator()),
+          SizedBox(
+            height: 16,
+          ),
+          Text(label),
+        ],
+      ),
+    );
+  }
 }
 
 /* ================================================== */
@@ -147,29 +169,16 @@ class _PdfRenderViewState extends State<PdfRenderView> {
 
   @override
   Widget build(BuildContext context) {
+    Widget child;
+    if (_loaded) {
+      child = PdfRenderLoadedView(loadCtrl: loadCtrl);
+    } else {
+      child = const LoaderWithText("Opening Document");
+    }
+
     return Scaffold(
       body: SafeArea(
-        child: Builder(
-          builder: (context) {
-            if (_loaded) {
-              return PdfRenderLoadedView(loadCtrl: loadCtrl);
-            }
-
-            // Loader
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Center(child: CircularProgressIndicator()),
-                  SizedBox(
-                    height: 16,
-                  ),
-                  const Text("Loading Document"),
-                ],
-              ),
-            );
-          },
-        ),
+        child: child,
       ),
     );
   }
@@ -177,6 +186,8 @@ class _PdfRenderViewState extends State<PdfRenderView> {
 
 /* ============================================ */
 /* ============================================ */
+/* ============================================ */
+
 /* ============================================ */
 
 class PdfRenderLoadedView extends StatefulWidget {
@@ -192,63 +203,61 @@ class PdfRenderLoadedView extends StatefulWidget {
 }
 
 class _PdfRenderLoadedViewState extends State<PdfRenderLoadedView> {
-  bool loading = true;
-  PdfPageImage? image = null;
+  bool loadingW = true;
+  double maxPageWidth = 0;
+
+  final measureKey = new GlobalKey();
+  bool loadingV = true;
+  double viewportWidth = 0;
 
   @override
   void initState() {
     super.initState();
-    void initAsync() async {
-      final ctrl = widget.loadCtrl;
 
-      final pageLoader = ctrl.loadPage(2);
-      final pageImage = await pageLoader.getImage();
-      await pageLoader.close();
+    void initAsync() async {
+      final doc = widget.loadCtrl.getDocument();
+
+      double maxW = double.negativeInfinity;
+
+      for (int i = 0; i < doc.pagesCount; ++i) {
+        final page = await doc.getPage(i + 1);
+        if (page.width > maxW) maxW = page.width;
+        await page.close();
+      }
 
       setState(() {
-        image = pageImage;
-        loading = false;
+        maxPageWidth = maxW;
+        loadingW = false;
       });
     }
 
     initAsync();
+
+    WidgetsBinding.instance!.addPostFrameCallback((_) {
+      final renderObject =
+          measureKey.currentContext?.findRenderObject() as RenderBox?;
+
+      setState(() {
+        viewportWidth = renderObject?.size.width ?? 0;
+        loadingV = false;
+      });
+    });
   }
 
   @override
   Widget build(BuildContext context) {
-    Widget block;
-    if (loading)
-      block = Container(
-        width: 200,
-        height: 200,
-        decoration: BoxDecoration(
-          color: Colors.amber,
-          borderRadius: BorderRadius.circular(32),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.yellow[200]!,
-              offset: Offset(32, 32),
-            ),
-            BoxShadow(
-              color: Colors.amberAccent[200]!,
-              offset: Offset(16, 16),
-            ),
-          ],
-        ),
+    if (loadingW || loadingV) {
+      return Container(
+        width: double.infinity,
+        height: double.infinity,
+        key: measureKey,
+        alignment: Alignment.center,
+        child: const LoaderWithText("Loading View"),
       );
-    else if (image != null)
-      block = Image.memory(
-        image!.bytes,
-        width: 200,
-        height: 200,
-      );
-    else
-      block = const Text("Unloaded");
+    }
 
-    return Container(
-      alignment: Alignment.center,
-      color: Colors.red[100],
-      child: block,
+    return Center(
+      child: Text("viewportWidth: ${viewportWidth}"),
     );
   }
 }
