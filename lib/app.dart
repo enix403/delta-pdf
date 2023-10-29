@@ -1,3 +1,4 @@
+import 'package:deltapdf/core/filesystem.dart';
 import 'package:deltapdf/ui/pdf_render/pdf_render.dart';
 import 'package:flutter/material.dart';
 
@@ -17,6 +18,23 @@ class _AppState extends State<App> {
   Widget build(BuildContext context) {
 
     return PdfRenderView();
+
+    // ignore: dead_code
+    return Scaffold(
+      body: Center(
+        child: FilledButton(
+          onPressed: () async {
+            final hasPermission =
+                await PermissionUtils.externalStoragePermission(context);
+            if (!hasPermission) return;
+
+            Navigator.of(context)
+                .push(MaterialPageRoute(builder: (_) => PdfRenderView()));
+          },
+          child: Text("Open"),
+        ),
+      ),
+    );
 
     // ignore: dead_code
     return Scaffold(

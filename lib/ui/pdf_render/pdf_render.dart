@@ -76,15 +76,12 @@ class PdfLoadController {
   PdfDocument getDocument() => _document!;
 
   void load(String id) {
-    //print('##########################################################');
-    //print("load");
-    //print('##########################################################');
     _loadDummyDocument().then((document) {
       _onLoaded?.call(document);
-      //print('##########################################################');
-      //print("load::then");
-      //print('##########################################################');
       if (_isDisposed) {
+        print("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
+        print("dispose v1");
+        print("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
         document.close();
         return;
       }
@@ -96,15 +93,18 @@ class PdfLoadController {
   void _closeDocument() {
     if (_document == null) return;
 
+    print("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
+    print("dispose v2");
+    print("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
+
     _document!.close();
     _document = null;
   }
 
   void dispose() {
-    //print('##########################################################');
-    //print("dispose");
-    print('##########################################################');
-
+    print("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
+    print("dispose v3");
+    print("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
     _isDisposed = true;
 
     // Wait for page closing
@@ -121,6 +121,9 @@ class PdfLoadController {
       onClose: () {
         _loadedPageIndex = -1;
         if (_isDisposed) {
+          print("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
+          print("dispose v4");
+          print("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
           _closeDocument();
         }
       },
@@ -201,10 +204,19 @@ class PdfRenderLoadedView extends StatefulWidget {
   State<PdfRenderLoadedView> createState() => _PdfRenderLoadedViewState();
 }
 
+class PageItemData {
+  final PdfPageImage rawImage;
+  final double nativeWidth;
+
+  PageItemData({required this.rawImage, required this.nativeWidth});
+}
+
 class _PdfRenderLoadedViewState extends State<PdfRenderLoadedView> {
-  static const LOADING_MAX_WIDTH = 1;
-  static const LOADING_VIEWPORT_WIDTH = 2;
-  static const LOADING_PAGE_RENDERS = 8;
+  static const int LOADING_MAX_WIDTH = 1;
+  static const int LOADING_VIEWPORT_WIDTH = 2;
+  static const int LOADING_PAGE_RENDERS = 8;
+
+  static const double UPSCALE_FACTOR = 3;
 
   int loadState = 0;
 
@@ -214,7 +226,7 @@ class _PdfRenderLoadedViewState extends State<PdfRenderLoadedView> {
 
   double lastContrainedWidth = 0;
 
-  List<PdfPageImage?> renderedImages = [];
+  List<PageItemData> renderedImages = [];
 
   @override
   void initState() {
@@ -268,14 +280,11 @@ class _PdfRenderLoadedViewState extends State<PdfRenderLoadedView> {
   }
 
   Future<void> _renderPages() async {
-    print('##########################################################');
-    print('_renderPages: ${viewportWidth}');
-    print('##########################################################');
     setState(() {
       loadState = loadState | LOADING_PAGE_RENDERS;
     });
 
-    List<PdfPageImage?> renderedImages = [];
+    List<PageItemData> renderedImages = [];
     final loadCtrl = widget.loadCtrl;
     final pagesCount = loadCtrl.getDocument().pagesCount;
 
@@ -283,18 +292,20 @@ class _PdfRenderLoadedViewState extends State<PdfRenderLoadedView> {
       final pageLoader = loadCtrl.loadPage(i + 1);
 
       final page = await pageLoader.getOrInit();
-      double aspectRatio = page.height / page.width; 
+      double aspectRatio = page.height / page.width;
 
       Size physicalSize = Size(viewportWidth, aspectRatio * viewportWidth);
+      physicalSize *= UPSCALE_FACTOR;
 
       final image = await page.render(
         width: physicalSize.width,
         height: physicalSize.height,
-        format: PdfPageImageFormat.png,
+        format: PdfPageImageFormat.webp,
       );
       await pageLoader.close();
 
-      renderedImages.add(image);
+      renderedImages
+          .add(PageItemData(rawImage: image!, nativeWidth: page.width));
     }
 
     setState(() {
@@ -328,9 +339,16 @@ class _PdfRenderLoadedViewState extends State<PdfRenderLoadedView> {
 
       return ListView.builder(
         itemBuilder: (context, index) {
-          final image = renderedImages[index];
-          return Image.memory(
-            image!.bytes
+          final pageItem = renderedImages[index];
+          return Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Image.memory(
+                pageItem.rawImage.bytes,
+                width: viewportWidth * pageItem.nativeWidth / maxPageWidth,
+              ),
+            ],
           );
         },
         itemCount: renderedImages.length,
