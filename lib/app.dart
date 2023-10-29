@@ -1,4 +1,4 @@
-import 'dart:math' as math;
+import 'package:deltapdf/ui/pdf_render/pdf_render.dart';
 import 'package:flutter/material.dart';
 
 import 'ui/files_view/files_view.dart';
@@ -15,6 +15,10 @@ class _AppState extends State<App> {
 
   @override
   Widget build(BuildContext context) {
+
+    return PdfRenderView();
+
+    // ignore: dead_code
     return Scaffold(
       body: [
         FilesView(),
