@@ -45,18 +45,17 @@ class PdfPageLoadController {
   final PdfDocument document;
   final int index;
 
+  PdfPage? page;
+
   PdfPageLoadController(this.document, this.index, {required this.onClose});
 
-  Future<PdfPageImage?> renderImage() async {
-    final page = await document.getPage(index);
-    final image = await page.render(
-        width: 200, height: 200, format: PdfPageImageFormat.png);
-    await page.close();
-
-    return image;
+  Future<PdfPage> getOrInit() async {
+    page ??= await document.getPage(index);
+    return page!;
   }
 
   Future<void> close() async {
+    await page?.close();
     onClose();
   }
 }
@@ -279,13 +278,23 @@ class _PdfRenderLoadedViewState extends State<PdfRenderLoadedView> {
     List<PdfPageImage?> renderedImages = [];
     final loadCtrl = widget.loadCtrl;
     final pagesCount = loadCtrl.getDocument().pagesCount;
+
     for (int i = 0; i < pagesCount; ++i) {
-      final page = loadCtrl.loadPage(i + 1);
+      final pageLoader = loadCtrl.loadPage(i + 1);
 
-      final image = await page.renderImage();
+      final page = await pageLoader.getOrInit();
+      double aspectRatio = page.height / page.width; 
+
+      Size physicalSize = Size(viewportWidth, aspectRatio * viewportWidth);
+
+      final image = await page.render(
+        width: physicalSize.width,
+        height: physicalSize.height,
+        format: PdfPageImageFormat.png,
+      );
+      await pageLoader.close();
+
       renderedImages.add(image);
-
-      await page.close();
     }
 
     setState(() {
