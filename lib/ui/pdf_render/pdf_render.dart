@@ -47,7 +47,7 @@ class PdfPageLoadController {
 
   PdfPageLoadController(this.document, this.index, {required this.onClose});
 
-  Future<PdfPageImage?> getImage() async {
+  Future<PdfPageImage?> renderImage() async {
     final page = await document.getPage(index);
     final image = await page.render(
         width: 200, height: 200, format: PdfPageImageFormat.png);
@@ -280,7 +280,11 @@ class _PdfRenderLoadedViewState extends State<PdfRenderLoadedView> {
     final loadCtrl = widget.loadCtrl;
     final pagesCount = loadCtrl.getDocument().pagesCount;
     for (int i = 0; i < pagesCount; ++i) {
-      final page = await loadCtrl.loadPage(i + 1);
+      final page = loadCtrl.loadPage(i + 1);
+
+      final image = await page.renderImage();
+      renderedImages.add(image);
+
       await page.close();
     }
 
@@ -312,8 +316,15 @@ class _PdfRenderLoadedViewState extends State<PdfRenderLoadedView> {
           _onGeometryChanged();
         });
       }
-      return Center(
-        child: Text("viewportWidth: ${viewportWidth}"),
+
+      return ListView.builder(
+        itemBuilder: (context, index) {
+          final image = renderedImages[index];
+          return Image.memory(
+            image!.bytes
+          );
+        },
+        itemCount: renderedImages.length,
       );
     });
   }
