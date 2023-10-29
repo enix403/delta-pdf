@@ -77,14 +77,14 @@ class PdfLoadController {
   PdfDocument getDocument() => _document!;
 
   void load(String id) {
-    print('##########################################################');
-    print("load");
-    print('##########################################################');
+    //print('##########################################################');
+    //print("load");
+    //print('##########################################################');
     _loadDummyDocument().then((document) {
       _onLoaded?.call(document);
-      print('##########################################################');
-      print("load::then");
-      print('##########################################################');
+      //print('##########################################################');
+      //print("load::then");
+      //print('##########################################################');
       if (_isDisposed) {
         document.close();
         return;
@@ -102,8 +102,8 @@ class PdfLoadController {
   }
 
   void dispose() {
-    print('##########################################################');
-    print("dispose");
+    //print('##########################################################');
+    //print("dispose");
     print('##########################################################');
 
     _isDisposed = true;
@@ -203,50 +203,96 @@ class PdfRenderLoadedView extends StatefulWidget {
 }
 
 class _PdfRenderLoadedViewState extends State<PdfRenderLoadedView> {
-  bool loadingW = true;
-  double maxPageWidth = 0;
+  static const LOADING_MAX_WIDTH = 1;
+  static const LOADING_VIEWPORT_WIDTH = 2;
+  static const LOADING_PAGE_RENDERS = 8;
+
+  int loadState = 0;
 
   final measureKey = new GlobalKey();
-  bool loadingV = true;
+  double maxPageWidth = 0;
   double viewportWidth = 0;
+
+  double lastContrainedWidth = 0;
+
+  List<PdfPageImage?> renderedImages = [];
 
   @override
   void initState() {
     super.initState();
 
-    void initAsync() async {
-      final doc = widget.loadCtrl.getDocument();
+    //_calculateViewportWidth();
+    _calculateMaxPageWidth();
+  }
 
-      double maxW = double.negativeInfinity;
+  Future<void> _calculateMaxPageWidth() async {
+    setState(() {
+      loadState = loadState | LOADING_MAX_WIDTH;
+    });
 
-      for (int i = 0; i < doc.pagesCount; ++i) {
-        final page = await doc.getPage(i + 1);
-        if (page.width > maxW) maxW = page.width;
-        await page.close();
-      }
+    final doc = widget.loadCtrl.getDocument();
 
-      setState(() {
-        maxPageWidth = maxW;
-        loadingW = false;
-      });
+    double maxW = double.negativeInfinity;
+
+    for (int i = 0; i < doc.pagesCount; ++i) {
+      final page = await doc.getPage(i + 1);
+      if (page.width > maxW) maxW = page.width;
+      await page.close();
     }
 
-    initAsync();
+    setState(() {
+      maxPageWidth = maxW;
+      loadState = loadState & ~LOADING_MAX_WIDTH;
+    });
+  }
 
-    WidgetsBinding.instance!.addPostFrameCallback((_) {
+  Future<void> _onGeometryChanged() async {
+    setState(() {
+      loadState = loadState | LOADING_VIEWPORT_WIDTH;
+    });
+
+    await Future.delayed(Duration.zero);
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
       final renderObject =
           measureKey.currentContext?.findRenderObject() as RenderBox?;
 
+      final viewportWidth = renderObject?.size.width ?? 0;
+
       setState(() {
-        viewportWidth = renderObject?.size.width ?? 0;
-        loadingV = false;
+        this.viewportWidth = viewportWidth;
+        loadState = loadState & ~LOADING_VIEWPORT_WIDTH;
       });
+
+      _renderPages();
+    });
+  }
+
+  Future<void> _renderPages() async {
+    print('##########################################################');
+    print('_renderPages: ${viewportWidth}');
+    print('##########################################################');
+    setState(() {
+      loadState = loadState | LOADING_PAGE_RENDERS;
+    });
+
+    List<PdfPageImage?> renderedImages = [];
+    final loadCtrl = widget.loadCtrl;
+    final pagesCount = loadCtrl.getDocument().pagesCount;
+    for (int i = 0; i < pagesCount; ++i) {
+      final page = await loadCtrl.loadPage(i + 1);
+      await page.close();
+    }
+
+    setState(() {
+      loadState = loadState & ~LOADING_PAGE_RENDERS;
+      this.renderedImages = renderedImages;
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    if (loadingW || loadingV) {
+    if (loadState != 0) {
       return Container(
         width: double.infinity,
         height: double.infinity,
@@ -256,8 +302,19 @@ class _PdfRenderLoadedViewState extends State<PdfRenderLoadedView> {
       );
     }
 
-    return Center(
-      child: Text("viewportWidth: ${viewportWidth}"),
-    );
+    return LayoutBuilder(builder: (context, constraints) {
+      if (lastContrainedWidth != constraints.maxWidth) {
+        print('##########################################################');
+        print("Size miss");
+        print('##########################################################');
+        lastContrainedWidth = constraints.maxWidth;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _onGeometryChanged();
+        });
+      }
+      return Center(
+        child: Text("viewportWidth: ${viewportWidth}"),
+      );
+    });
   }
 }
