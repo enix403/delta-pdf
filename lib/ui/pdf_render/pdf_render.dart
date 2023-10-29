@@ -216,13 +216,12 @@ class _PdfRenderLoadedViewState extends State<PdfRenderLoadedView> {
   static const int LOADING_VIEWPORT_WIDTH = 2;
   static const int LOADING_PAGE_RENDERS = 8;
 
-  static const double UPSCALE_FACTOR = 3;
-
   int loadState = 0;
 
   final measureKey = new GlobalKey();
   double maxPageWidth = 0;
   double viewportWidth = 0;
+  double viewportPixelRatio = 0;
 
   double lastContrainedWidth = 0;
 
@@ -231,8 +230,6 @@ class _PdfRenderLoadedViewState extends State<PdfRenderLoadedView> {
   @override
   void initState() {
     super.initState();
-
-    //_calculateViewportWidth();
     _calculateMaxPageWidth();
   }
 
@@ -295,12 +292,12 @@ class _PdfRenderLoadedViewState extends State<PdfRenderLoadedView> {
       double aspectRatio = page.height / page.width;
 
       Size physicalSize = Size(viewportWidth, aspectRatio * viewportWidth);
-      physicalSize *= UPSCALE_FACTOR;
+      physicalSize *= viewportPixelRatio;
 
       final image = await page.render(
         width: physicalSize.width,
         height: physicalSize.height,
-        format: PdfPageImageFormat.webp,
+        format: PdfPageImageFormat.png,
       );
       await pageLoader.close();
 
@@ -332,6 +329,7 @@ class _PdfRenderLoadedViewState extends State<PdfRenderLoadedView> {
         print("Size miss");
         print('##########################################################');
         lastContrainedWidth = constraints.maxWidth;
+        viewportPixelRatio = MediaQuery.of(context).devicePixelRatio;
         WidgetsBinding.instance.addPostFrameCallback((_) {
           _onGeometryChanged();
         });
