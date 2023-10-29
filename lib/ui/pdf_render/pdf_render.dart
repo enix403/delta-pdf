@@ -16,18 +16,24 @@ Future<PdfDocument> _loadDummyDocument() async {
   return doc;
 }
 
-abstract class IPdfPageLoadController {
-  Future<void> close();
-}
-
 /* ================================================== */
 
-class PdfPageLoadController implements IPdfPageLoadController {
+class PdfPageLoadController {
   final VoidCallback onClose;
+  final PdfDocument document;
+  final int index;
 
-  PdfPageLoadController({required this.onClose});
+  PdfPageLoadController(this.document, this.index, {required this.onClose});
 
-  @override
+  Future<PdfPageImage?> getImage() async {
+    final page = await document.getPage(index);
+    final image = await page.render(
+        width: 200, height: 200, format: PdfPageImageFormat.png);
+    await page.close();
+
+    return image;
+  }
+
   Future<void> close() async {
     onClose();
   }
@@ -86,14 +92,18 @@ class PdfLoadController {
     }
   }
 
-  IPdfPageLoadController loadPage(int index) {
+  PdfPageLoadController loadPage(int index) {
     _loadedPageIndex = index;
-    return new PdfPageLoadController(onClose: () {
-      _loadedPageIndex = -1;
-      if (_isDisposed) {
-        _closeDocument();
-      }
-    });
+    return new PdfPageLoadController(
+      _document!,
+      index,
+      onClose: () {
+        _loadedPageIndex = -1;
+        if (_isDisposed) {
+          _closeDocument();
+        }
+      },
+    );
   }
 
   void notifyOnLoaded(PdfLoadedCallback callback) {
@@ -182,10 +192,33 @@ class PdfRenderLoadedView extends StatefulWidget {
 }
 
 class _PdfRenderLoadedViewState extends State<PdfRenderLoadedView> {
+  bool loading = true;
+  PdfPageImage? image = null;
+
+  @override
+  void initState() {
+    super.initState();
+    void initAsync() async {
+      final ctrl = widget.loadCtrl;
+
+      final pageLoader = ctrl.loadPage(2);
+      final pageImage = await pageLoader.getImage();
+      await pageLoader.close();
+
+      setState(() {
+        image = pageImage;
+        loading = false;
+      });
+    }
+
+    initAsync();
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Container(
+    Widget block;
+    if (loading)
+      block = Container(
         width: 200,
         height: 200,
         decoration: BoxDecoration(
@@ -202,7 +235,20 @@ class _PdfRenderLoadedViewState extends State<PdfRenderLoadedView> {
             ),
           ],
         ),
-      ),
+      );
+    else if (image != null)
+      block = Image.memory(
+        image!.bytes,
+        width: 200,
+        height: 200,
+      );
+    else
+      block = const Text("Unloaded");
+
+    return Container(
+      alignment: Alignment.center,
+      color: Colors.red[100],
+      child: block,
     );
   }
 }
