@@ -3,249 +3,206 @@ import 'package:deltapdf/core/filesystem.dart';
 import 'package:flutter/material.dart';
 import 'package:pdfx/pdfx.dart';
 
-class PdfRenderView extends StatefulWidget {
-  //final Future<PdfDocument> documentFut;
+Future<PdfDocument> _loadDummyDocument() async {
+  await DocumentTree.ensureTreeRoot();
+  final filepath = DocumentTree.resolveFromRoot(['lms.pdf']);
+  final file = File(filepath);
 
-  const PdfRenderView({
+  final bytes = await file.readAsBytes();
+  final doc = await PdfDocument.openData(bytes);
+
+  await Future.delayed(const Duration(seconds: 4));
+
+  return doc;
+}
+
+abstract class IPdfPageLoadController {
+  Future<void> close();
+}
+
+/* ================================================== */
+
+class PdfPageLoadController implements IPdfPageLoadController {
+  final VoidCallback onClose;
+
+  PdfPageLoadController({required this.onClose});
+
+  @override
+  Future<void> close() async {
+    onClose();
+  }
+}
+
+/* ================================================== */
+
+typedef PdfLoadedCallback = void Function(PdfDocument document);
+
+class PdfLoadController {
+  PdfDocument? _document;
+  bool _isDisposed = false;
+  int _loadedPageIndex = -1;
+
+  PdfLoadedCallback? _onLoaded;
+
+  bool get isLoaded => _document != null;
+
+  PdfDocument getDocument() => _document!;
+
+  void load(String id) {
+    print('##########################################################');
+    print("load");
+    print('##########################################################');
+    _loadDummyDocument().then((document) {
+      _onLoaded?.call(document);
+      print('##########################################################');
+      print("load::then");
+      print('##########################################################');
+      if (_isDisposed) {
+        document.close();
+        return;
+      }
+
+      _document = document;
+    });
+  }
+
+  void _closeDocument() {
+    if (_document == null) return;
+
+    _document!.close();
+    _document = null;
+  }
+
+  void dispose() {
+    print('##########################################################');
+    print("dispose");
+    print('##########################################################');
+
+    _isDisposed = true;
+
+    // Wait for page closing
+    if (_loadedPageIndex == -1) {
+      _closeDocument();
+    }
+  }
+
+  IPdfPageLoadController loadPage(int index) {
+    _loadedPageIndex = index;
+    return new PdfPageLoadController(onClose: () {
+      _loadedPageIndex = -1;
+      if (_isDisposed) {
+        _closeDocument();
+      }
+    });
+  }
+
+  void notifyOnLoaded(PdfLoadedCallback callback) {
+    _onLoaded = callback;
+  }
+}
+
+/* ========================================================== */
+/* ========================================================== */
+/* ========================================================== */
+
+class PdfRenderView extends StatefulWidget {
+  const PdfRenderView({super.key});
+
+  @override
+  State<PdfRenderView> createState() => _PdfRenderViewState();
+}
+
+class _PdfRenderViewState extends State<PdfRenderView> {
+  final loadCtrl = new PdfLoadController();
+
+  bool _loaded = false;
+
+  @override
+  void initState() {
+    super.initState();
+    loadCtrl
+      ..load("1601")
+      ..notifyOnLoaded((_) {
+        setState(() {
+          _loaded = true;
+        });
+      });
+  }
+
+  @override
+  void dispose() {
+    loadCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: SafeArea(
+        child: Builder(
+          builder: (context) {
+            if (_loaded) {
+              return PdfRenderLoadedView(loadCtrl: loadCtrl);
+            }
+
+            // Loader
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Center(child: CircularProgressIndicator()),
+                  SizedBox(
+                    height: 16,
+                  ),
+                  const Text("Loading Document"),
+                ],
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
+/* ============================================ */
+/* ============================================ */
+/* ============================================ */
+
+class PdfRenderLoadedView extends StatefulWidget {
+  final PdfLoadController loadCtrl;
+
+  const PdfRenderLoadedView({
     super.key,
-    //required this.documentFut,
+    required this.loadCtrl,
   });
 
   @override
-  PdfRenderViewState createState() => PdfRenderViewState();
+  State<PdfRenderLoadedView> createState() => _PdfRenderLoadedViewState();
 }
 
-class PdfRenderViewState extends State<PdfRenderView> {
-  Future<PdfDocument>? documentFut = null;
-  PdfDocument? document = null;
-  bool pdfLoading = true;
-
-  bool pageLoading = true;
-  double pageAspectRatio = 0;
-  PdfPageImage? image = null;
-
-  @override
-  void initState() {
-    super.initState();
-    documentFut = _loadDocument();
-
-    initAsync() async {
-      final doc = await documentFut;
-      setState(() {
-        document = doc;
-        pdfLoading = false;
-        pageLoading = true;
-      });
-
-      if (doc == null) return;
-
-      // final page = await doc.getPage(1);
-      // final image = await page.render(
-      //   width: 200,
-      //   height: 600,
-      //   format: PdfPageImageFormat.png,
-      // );
-    }
-
-    initAsync();
-  }
-
-  @override
-  void dispose() {
-    if (document != null) {
-      if (!document!.isClosed) document!.close();
-    } else if (documentFut != null) {
-      documentFut!.then((doc) {
-        if (!doc.isClosed) doc.close();
-      });
-    }
-
-    super.dispose();
-  }
-
-  Future<PdfDocument> _loadDocument() async {
-    await DocumentTree.ensureTreeRoot();
-    final filepath = DocumentTree.resolveFromRoot(['lms.pdf']);
-
-    print(filepath);
-
-    final file = File(filepath);
-    //print(file.lengthSync());
-    final bytes = await file.readAsBytes();
-    final doc = await PdfDocument.openData(bytes);
-    return doc;
-  }
-
-  Widget _buildCore(BuildContext context) {
-    if (pdfLoading) return const Center(child: CircularProgressIndicator());
-
-    return Center(
-      child: Text(
-        "Loaded " + (document?.pagesCount.toString()).toString(),
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      body: SafeArea(
-        child: Container(
-          color: Colors.lime,
-          width: double.infinity,
-          height: double.infinity,
-          child: _buildCore(context),
-        ),
-      ),
-    );
-  }
-}
-
-/*
-class _PdfRenderViewState extends State<PdfRenderView> {
-  late Future<PdfDocument> document;
-
-  PdfPageImage? pageImage = null;
-  Size viewSize = Size(0, 0);
-
-  @override
-  void initState() {
-    super.initState();
-    document = _loadDocument();
-    _createPageImage();
-  }
-
-  @override
-  void dispose() {
-    document.then((doc) {
-      if (!doc.isClosed) doc.close();
-    });
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final Widget real = LayoutBuilder(
-      builder: (context, constraints) {
-        return SizedBox.shrink();
-      },
-    );
-
-    return Scaffold(
-      body: SafeArea(
-        child: Container(
-          color: Colors.lime,
-          width: double.infinity,
-          height: double.infinity,
-          child: real,
-        ),
-      ),
-    );
-  }
-
-  Future<PdfDocument> _loadDocument() async {
-    await DocumentTree.ensureTreeRoot();
-    final filepath = DocumentTree.resolveFromRoot(['lms.pdf']);
-
-    print(filepath);
-
-    final file = File(filepath);
-    //print(file.lengthSync());
-    final bytes = await file.readAsBytes();
-    final doc = await PdfDocument.openData(bytes);
-    return doc;
-  }
-
-  Future<void> _createPageImage() async {
-    final doc = await document;
-
-    final page = await doc.getPage(1);
-
-    final image = await page.render(
-      width: 200,
-      height: 600,
-      format: PdfPageImageFormat.png,
-    );
-
-    setState(() {
-      pageImage = image;
-    });
-
-    page.close();
-  }
-}
-
-*/
-
-
-/*
-
-import 'dart:io';
-import 'package:deltapdf/core/filesystem.dart';
-import 'package:flutter/material.dart';
-
-import 'package:pdfx/pdfx.dart';
-
-class RecentsView extends StatelessWidget {
+class _PdfRenderLoadedViewState extends State<PdfRenderLoadedView> {
   @override
   Widget build(BuildContext context) {
     return Center(
-      child: FilledButton(
-        onPressed: () async {
-          _openPDF(context);
-        },
-        child: const Text("Open PDF"),
-      ),
-    );
-  }
-
-  Future<PdfDocument> _loadFile() async {
-    await DocumentTree.ensureTreeRoot();
-    final filepath = DocumentTree.resolveFromRoot(['lms.pdf']);
-
-    print(filepath);
-
-    final file = File(filepath);
-    //print(file.lengthSync());
-    final bytes = await file.readAsBytes();
-    final doc = await PdfDocument.openData(bytes);
-    return doc;
-  }
-
-  Future<void> _showPDFView(BuildContext context, PdfDocument doc) async {
-    final page = await doc.getPage(1);
-    final image = await page.render(
-      width: 200,
-      height: 600,
-      format: PdfPageImageFormat.png,
-
-    );
-    await page.close();
-
-    if (image == null)
-      return;
-
-    Navigator.of(context, rootNavigator: true).push(
-      MaterialPageRoute(
-        builder: (_) => Container(
-          color: Colors.red,
-          child: Image.memory(image.bytes)
+      child: Container(
+        width: 200,
+        height: 200,
+        decoration: BoxDecoration(
+          color: Colors.amber,
+          borderRadius: BorderRadius.circular(32),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.yellow[200]!,
+              offset: Offset(32, 32),
+            ),
+            BoxShadow(
+              color: Colors.amberAccent[200]!,
+              offset: Offset(16, 16),
+            ),
+          ],
         ),
       ),
     );
   }
-
-  void _openPDF(BuildContext context) async {
-    final doc = await _loadFile();
-    //print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
-
-    if (context.mounted) {
-      await _showPDFView(context, doc);
-    }
-
-    await doc.close();
-  }
 }
-
-
-*/
