@@ -5,7 +5,7 @@ import 'package:pdfx/pdfx.dart';
 
 Future<PdfDocument> _loadDummyDocument() async {
   await DocumentTree.ensureTreeRoot();
-  final filepath = DocumentTree.resolveFromRoot(['lms.pdf']);
+  final filepath = DocumentTree.resolveFromRoot(['calc-small.pdf']);
   final file = File(filepath);
 
   final bytes = await file.readAsBytes();
@@ -208,7 +208,10 @@ class PageItemData {
   final PdfPageImage rawImage;
   final double nativeWidth;
 
-  PageItemData({required this.rawImage, required this.nativeWidth});
+  PageItemData({
+    required this.rawImage,
+    required this.nativeWidth,
+  });
 }
 
 class _PdfRenderLoadedViewState extends State<PdfRenderLoadedView> {
@@ -226,6 +229,8 @@ class _PdfRenderLoadedViewState extends State<PdfRenderLoadedView> {
   double lastContrainedWidth = 0;
 
   List<PageItemData> renderedImages = [];
+  int renderStartIndex = -1;
+  int renderEndIndex = -1;
 
   @override
   void initState() {
@@ -311,6 +316,28 @@ class _PdfRenderLoadedViewState extends State<PdfRenderLoadedView> {
     });
   }
 
+  void _onPageDrawRequested(int index) {}
+
+  Widget? _buildPageIndexed(BuildContext context, int index) {
+    if (index >= renderedImages.length) return null;
+
+    print('##########################################################');
+    print('Build Item ${index}');
+    print('##########################################################');
+
+    final pageItem = renderedImages[index % renderedImages.length];
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Image.memory(
+          pageItem.rawImage.bytes,
+          width: viewportWidth * pageItem.nativeWidth / maxPageWidth,
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (loadState != 0) {
@@ -335,22 +362,27 @@ class _PdfRenderLoadedViewState extends State<PdfRenderLoadedView> {
         });
       }
 
-      return ListView.builder(
-        itemBuilder: (context, index) {
-          final pageItem = renderedImages[index];
-          return Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Image.memory(
-                pageItem.rawImage.bytes,
-                width: viewportWidth * pageItem.nativeWidth / maxPageWidth,
-              ),
-            ],
-          );
-        },
-        itemCount: renderedImages.length,
+      return ListView.custom(
+        childrenDelegate: ListPageDelegate(_buildPageIndexed),
       );
     });
+  }
+}
+
+class ListPageDelegate extends SliverChildBuilderDelegate {
+  ListPageDelegate(super.builder)
+      : super(
+          addAutomaticKeepAlives: false,
+          addSemanticIndexes: false,
+        );
+
+  @override
+  double? estimateMaxScrollOffset(
+    int firstIndex,
+    int lastIndex,
+    double leadingScrollOffset,
+    double trailingScrollOffset,
+  ) {
+    return 416;
   }
 }
