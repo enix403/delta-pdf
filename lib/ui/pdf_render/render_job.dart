@@ -16,29 +16,35 @@ class RenderedPageData {
   });
 }
 
-class RenderRequestRange {
+class PageRange {
   final int startIndex;
   final int endIndex;
 
-  RenderRequestRange({
-    required this.startIndex,
-    required this.endIndex,
-  });
+  PageRange(
+    this.startIndex,
+    this.endIndex,
+  );
 
-  RenderRequestRange.empty()
+  PageRange.empty()
       : startIndex = -1,
         endIndex = -1;
 
   @override
   bool operator ==(Object other) {
     return identical(this, other) ||
-        (other is RenderRequestRange &&
+        (other is PageRange &&
             startIndex == other.startIndex &&
             endIndex == other.endIndex);
   }
 
   @override
   int get hashCode => startIndex.hashCode ^ endIndex.hashCode;
+
+  bool get isEmpty => startIndex == -1 && endIndex == -1;
+
+  bool contains(int index) {
+    return !isEmpty && (index >= startIndex && index <= endIndex);
+  }
 }
 
 class RenderViewportInfo {
@@ -54,14 +60,13 @@ class RenderViewportInfo {
 class RenderJob {
   final PdfLoadController loadCtrl;
   final VoidCallback onJobResult;
-  final int pageCount;
-  
+
   RenderJob({
     required this.loadCtrl,
     required this.onJobResult,
-  }) : pageCount = loadCtrl.getDocument().pagesCount;
+  });
 
-  RenderRequestRange currentRange = RenderRequestRange.empty();
+  PageRange currentRange = PageRange.empty();
   List<RenderedPageData> resultImages = [];
 
   bool cancelled = false;
@@ -69,7 +74,12 @@ class RenderJob {
 
   Notifier cancelNotifier = Notifier();
 
-  void start(RenderRequestRange range, RenderViewportInfo viewportInfo) async {
+  void start(PageRange range, RenderViewportInfo viewportInfo) async {
+
+    print('@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@');
+    print("STARTING WITH ${range.startIndex} -> ${range.endIndex}");
+    print('@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@');
+
     // TODO: assert(processing == false)
     processing = true;
 
@@ -81,6 +91,9 @@ class RenderJob {
         resultImages = [];
         break;
       }
+
+      print('@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@');
+      print("$i ${viewportInfo.width} ${viewportInfo.pixelRatio}");
 
       final pageLoader = loadCtrl.loadPage(i + 1);
       final page = await pageLoader.getOrInit();
@@ -96,13 +109,13 @@ class RenderJob {
         format: PdfPageImageFormat.png,
       );
 
+      await pageLoader.close();
+
       resultImages.add(RenderedPageData(
         index: i,
         image: image!,
         logicalWidth: page.width,
       ));
-
-      await pageLoader.close();
     }
 
     processing = false;
@@ -127,6 +140,20 @@ class RenderJob {
     });
 
     return completer.future;
+  }
+
+  RenderedPageData? getIndexed(int index) {
+    if (processing || cancelled) return null;
+
+    if (!currentRange.contains(index)) return null;
+
+    int dist = index - currentRange.startIndex;
+
+    if (dist >= resultImages.length) return null;
+
+    final item = resultImages[dist];
+
+    return item.index == index ? item : null;
   }
 }
 
