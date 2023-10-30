@@ -46,7 +46,9 @@ typedef PdfLoadedCallback = void Function(PdfDocument document);
 class PdfLoadController {
   PdfDocument? _document;
   bool _isDisposed = false;
+
   int _loadedPageIndex = -1;
+  PdfPageLoadController? _loadedPageCtrl;
 
   PdfLoadedCallback? _onLoaded;
 
@@ -58,9 +60,6 @@ class PdfLoadController {
     _loadDummyDocument().then((document) {
       _onLoaded?.call(document);
       if (_isDisposed) {
-        print("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
-        print("dispose v1");
-        print("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
         document.close();
         return;
       }
@@ -72,18 +71,11 @@ class PdfLoadController {
   void _closeDocument() {
     if (_document == null) return;
 
-    print("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
-    print("dispose v2");
-    print("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
-
     _document!.close();
     _document = null;
   }
 
   void dispose() {
-    print("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
-    print("dispose v3");
-    print("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
     _isDisposed = true;
 
     // Wait for page closing
@@ -94,19 +86,19 @@ class PdfLoadController {
 
   PdfPageLoadController loadPage(int index) {
     _loadedPageIndex = index;
-    return new PdfPageLoadController(
+    _loadedPageCtrl = new PdfPageLoadController(
       _document!,
       index,
       onClose: () {
         _loadedPageIndex = -1;
+        _loadedPageCtrl = null;
         if (_isDisposed) {
-          print("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
-          print("dispose v4");
-          print("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
           _closeDocument();
         }
       },
     );
+
+    return _loadedPageCtrl!;
   }
 
   void notifyOnLoaded(PdfLoadedCallback callback) {

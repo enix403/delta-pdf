@@ -16,41 +16,26 @@ class PdfDocLoadedView extends StatefulWidget {
   State<PdfDocLoadedView> createState() => _PdfDocLoadedViewState();
 }
 
-class PageItemData {
-  final PdfPageImage rawImage;
-  final double nativeWidth;
-
-  PageItemData({
-    required this.rawImage,
-    required this.nativeWidth,
-  });
-}
-
 class _PdfDocLoadedViewState extends State<PdfDocLoadedView> {
   static const int LOADING_MAX_WIDTH = 1;
   static const int LOADING_VIEWPORT_WIDTH = 2;
-  static const int LOADING_PAGE_RENDERS = 8;
 
   int loadState = 0;
 
   final measureKey = new GlobalKey();
-  double maxPageWidth = 0;
+  double maxLogicalPageWidth = 0;
   double viewportWidth = 0;
   double viewportPixelRatio = 0;
 
   double lastContrainedWidth = 0;
 
-  List<PageItemData> renderedImages = [];
-  int renderStartIndex = -1;
-  int renderEndIndex = -1;
-
   @override
   void initState() {
     super.initState();
-    _calculateMaxPageWidth();
+    _calculateMaxLogicalPageWidth();
   }
 
-  Future<void> _calculateMaxPageWidth() async {
+  Future<void> _calculateMaxLogicalPageWidth() async {
     setState(() {
       loadState = loadState | LOADING_MAX_WIDTH;
     });
@@ -66,7 +51,7 @@ class _PdfDocLoadedViewState extends State<PdfDocLoadedView> {
     }
 
     setState(() {
-      maxPageWidth = maxW;
+      maxLogicalPageWidth = maxW;
       loadState = loadState & ~LOADING_MAX_WIDTH;
     });
   }
@@ -89,65 +74,8 @@ class _PdfDocLoadedViewState extends State<PdfDocLoadedView> {
         loadState = loadState & ~LOADING_VIEWPORT_WIDTH;
       });
 
-      _renderPages();
+      //_renderPages();
     });
-  }
-
-  Future<void> _renderPages() async {
-    setState(() {
-      loadState = loadState | LOADING_PAGE_RENDERS;
-    });
-
-    List<PageItemData> renderedImages = [];
-    final loadCtrl = widget.loadCtrl;
-    final pagesCount = loadCtrl.getDocument().pagesCount;
-
-    for (int i = 0; i < pagesCount; ++i) {
-      final pageLoader = loadCtrl.loadPage(i + 1);
-
-      final page = await pageLoader.getOrInit();
-      double aspectRatio = page.height / page.width;
-
-      Size physicalSize = Size(viewportWidth, aspectRatio * viewportWidth);
-      physicalSize *= viewportPixelRatio;
-
-      final image = await page.render(
-        width: physicalSize.width,
-        height: physicalSize.height,
-        format: PdfPageImageFormat.png,
-      );
-      await pageLoader.close();
-
-      renderedImages
-          .add(PageItemData(rawImage: image!, nativeWidth: page.width));
-    }
-
-    setState(() {
-      loadState = loadState & ~LOADING_PAGE_RENDERS;
-      this.renderedImages = renderedImages;
-    });
-  }
-
-  void _onPageDrawRequested(int index) {}
-
-  Widget? _buildPageIndexed(BuildContext context, int index) {
-    if (index >= renderedImages.length) return null;
-
-    print('##########################################################');
-    print('Build Item ${index}');
-    print('##########################################################');
-
-    final pageItem = renderedImages[index % renderedImages.length];
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Image.memory(
-          pageItem.rawImage.bytes,
-          width: viewportWidth * pageItem.nativeWidth / maxPageWidth,
-        ),
-      ],
-    );
   }
 
   @override
@@ -174,11 +102,34 @@ class _PdfDocLoadedViewState extends State<PdfDocLoadedView> {
         });
       }
 
-      return ListView.custom(
-        childrenDelegate: ListPageDelegate(_buildPageIndexed),
+      return ListView.builder(
+        itemBuilder: (context, index) {
+          print('##########################################################');
+          print("Build index ${index}");
+          print('##########################################################');
+
+          return Container(
+            color: Colors.grey[100],
+            alignment: Alignment.center,
+            height: 100,
+            child: const Text('Loading...'),
+          );
+        },
       );
     });
   }
+}
+
+/*
+
+class PageItemData {
+  final PdfPageImage rawImage;
+  final double nativeWidth;
+
+  PageItemData({
+    required this.rawImage,
+    required this.nativeWidth,
+  });
 }
 
 class ListPageDelegate extends SliverChildBuilderDelegate {
@@ -187,14 +138,48 @@ class ListPageDelegate extends SliverChildBuilderDelegate {
           addAutomaticKeepAlives: false,
           addSemanticIndexes: false,
         );
+}
 
-  @override
-  double? estimateMaxScrollOffset(
-    int firstIndex,
-    int lastIndex,
-    double leadingScrollOffset,
-    double trailingScrollOffset,
-  ) {
-    return 416;
+
+Widget? _buildPageIndexed(BuildContext context, int index) {
+  final pageItem = renderedImages[index % renderedImages.length];
+  return Column(
+    mainAxisAlignment: MainAxisAlignment.center,
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      Image.memory(
+        pageItem.rawImage.bytes,
+        width: viewportWidth * pageItem.nativeWidth / maxLogicalPageWidth,
+      ),
+    ],
+  );
+}
+
+
+Future<void> _renderPages() async {
+  List<PageItemData> renderedImages = [];
+  final loadCtrl = widget.loadCtrl;
+  final pagesCount = loadCtrl.getDocument().pagesCount;
+
+  for (int i = 0; i < pagesCount; ++i) {
+    final pageLoader = loadCtrl.loadPage(i + 1);
+
+    final page = await pageLoader.getOrInit();
+    double aspectRatio = page.height / page.width;
+
+    Size physicalSize = Size(viewportWidth, aspectRatio * viewportWidth);
+    physicalSize *= viewportPixelRatio;
+
+    final image = await page.render(
+      width: physicalSize.width,
+      height: physicalSize.height,
+      format: PdfPageImageFormat.png,
+    );
+    await pageLoader.close();
+
+    renderedImages
+        .add(PageItemData(rawImage: image!, nativeWidth: page.width));
   }
 }
+
+*/
