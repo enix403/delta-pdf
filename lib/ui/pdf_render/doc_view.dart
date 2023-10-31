@@ -12,38 +12,51 @@ class PdfDocView extends StatefulWidget {
   State<PdfDocView> createState() => _PdfDocViewState();
 }
 
+enum LoadState { OPENING, PARSING, LOADED }
+
 class _PdfDocViewState extends State<PdfDocView> {
-  bool _loaded = false;
+  LoadState _loadState = LoadState.OPENING;
   late final RenderPipeline _renderPipeline;
 
   @override
   void initState() {
     super.initState();
-    loadDummyDocument()
-        .then((document) => RenderPipeline.create(document))
-        .then((pipeline) {
-      setState(() {
-        _renderPipeline = pipeline;
-        _loaded = true;
-      });
-    });
+
+    _loadState = LoadState.OPENING;
+
+    loadDummyDocument().then(
+      (document) {
+        setState(() {
+          _loadState = LoadState.PARSING;
+        });
+        return RenderPipeline.create(document);
+      },
+    ).then(
+      (pipeline) {
+        setState(() {
+          _renderPipeline = pipeline;
+          _loadState = LoadState.LOADED;
+        });
+      },
+    );
   }
 
   @override
   void dispose() {
-    if (_loaded) _renderPipeline.dispose();
+    if (_loadState == LoadState.LOADED) _renderPipeline.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     Widget child;
-    if (_loaded) {
+    if (_loadState == LoadState.LOADED) {
       child = PdfDocLoadedView(
         pipeline: _renderPipeline,
       );
     } else {
-      child = const LabelledSpinner("Opening Document");
+      final debugInfo = (_loadState == LoadState.OPENING ? "OPEN" : "PARSE");
+      child = LabelledSpinner("Opening Document(" + debugInfo + ")");
     }
 
     return Scaffold(
