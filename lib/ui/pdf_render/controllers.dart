@@ -1,21 +1,8 @@
-import 'dart:io';
-import 'package:deltapdf/core/filesystem.dart';
 import 'package:pdfx/pdfx.dart';
 
+import 'misc.dart';
+
 typedef VoidCallback = void Function();
-
-Future<PdfDocument> _loadDummyDocument() async {
-  await DocumentTree.ensureTreeRoot();
-  final filepath = DocumentTree.resolveFromRoot(['calc-small.pdf']);
-  final file = File(filepath);
-
-  final bytes = await file.readAsBytes();
-  final doc = await PdfDocument.openData(bytes);
-
-  //await Future.delayed(const Duration(seconds: 4));
-
-  return doc;
-}
 
 /* ================================================== */
 
@@ -57,7 +44,7 @@ class PdfLoadController {
   PdfDocument getDocument() => _document!;
 
   void load(String id) {
-    _loadDummyDocument().then((document) {
+    loadDummyDocument().then((document) {
       _onLoaded?.call(document);
       if (_isDisposed) {
         document.close();

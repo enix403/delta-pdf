@@ -1,4 +1,8 @@
+import 'dart:io';
+import 'package:pdfx/pdfx.dart';
 import 'package:flutter/material.dart';
+
+import 'package:deltapdf/core/filesystem.dart';
 
 class LabelledSpinner extends StatelessWidget {
   final String label;
@@ -20,4 +24,17 @@ class LabelledSpinner extends StatelessWidget {
       ),
     );
   }
+}
+
+Future<PdfDocument> loadDummyDocument() async {
+  await DocumentTree.ensureTreeRoot();
+  final filepath = DocumentTree.resolveFromRoot(['calc-small.pdf']);
+  final file = File(filepath);
+
+  final bytes = await file.readAsBytes();
+  final doc = await PdfDocument.openData(bytes);
+
+  //await Future.delayed(const Duration(seconds: 4));
+
+  return doc;
 }

@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'misc.dart';
-import 'controllers.dart';
-
-import 'doc_loaded_view.dart';
+import 'pipeline.dart';
 
 class PdfDocView extends StatefulWidget {
   const PdfDocView({super.key});
@@ -13,25 +11,24 @@ class PdfDocView extends StatefulWidget {
 }
 
 class _PdfDocViewState extends State<PdfDocView> {
-  final loadCtrl = new PdfLoadController();
-
   bool _loaded = false;
+  late final RenderPipeline _renderPipeline;
 
   @override
   void initState() {
     super.initState();
-    loadCtrl
-      ..load("1601")
-      ..notifyOnLoaded((_) {
+    loadDummyDocument()
+      .then((document) => RenderPipeline.create(document))
+      .then((pipeline) {
         setState(() {
           _loaded = true;
+          _renderPipeline = pipeline;
         });
       });
   }
 
   @override
   void dispose() {
-    loadCtrl.dispose();
     super.dispose();
   }
 
@@ -39,7 +36,8 @@ class _PdfDocViewState extends State<PdfDocView> {
   Widget build(BuildContext context) {
     Widget child;
     if (_loaded) {
-      child = PdfDocLoadedView(loadCtrl: loadCtrl);
+      //child = PdfDocLoadedView(loadCtrl: loadCtrl);
+      child = Center(child: Text("loaded"));
     } else {
       child = const LabelledSpinner("Opening Document");
     }
