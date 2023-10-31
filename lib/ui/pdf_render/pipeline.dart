@@ -23,7 +23,7 @@ class RenderPipeline {
   late final DimesionList logicalSizes;
 
   // Logical width of the widest page
-  double maxLpWidth = double.negativeInfinity;
+  late final double maxLpWidth;
 
   RenderPipeline(this.document);
 
@@ -61,16 +61,15 @@ class RenderPipeline {
       return _calculateLogicalWidths(document);
     });
 
-    maxLpWidth = double.negativeInfinity;
+    double maxWidth = double.negativeInfinity;
 
     for (int i = 0; i < totalPages; ++i)
-      maxLpWidth = math.max(maxLpWidth, logicalSizes.widths[i]);
+      maxWidth = math.max(maxWidth, logicalSizes.widths[i]);
 
-    // print("====================================");
-    // print("init completed");
-    // print("$logicalSizes");
-    // print("$totalPages AND ${logicalSizes.widths.length} AND ${logicalSizes.heights.length}");
-    // print("$maxLpWidth");
-    // print("====================================");
+    maxLpWidth = maxWidth;
+  }
+
+  void dispose() {
+    // TODO close the document
   }
 }

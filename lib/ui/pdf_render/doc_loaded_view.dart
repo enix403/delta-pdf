@@ -1,179 +1,111 @@
 import 'dart:math' as math;
-import 'package:pdfx/pdfx.dart';
 import 'package:flutter/material.dart';
 
-import 'misc.dart';
-import 'controllers.dart';
-import 'render_job.dart';
+import 'pipeline.dart';
 
-class PdfDocLoadedView extends StatefulWidget {
-  final PdfLoadController loadCtrl;
-  final int pageCount;
+class PdfDocLoadedView extends StatelessWidget {
+  final RenderPipeline pipeline;
 
-  PdfDocLoadedView({
+  const PdfDocLoadedView({
     super.key,
-    required this.loadCtrl,
-  }) : pageCount = loadCtrl.getDocument().pagesCount;
+    required this.pipeline,
+  });
 
   @override
-  State<PdfDocLoadedView> createState() => _PdfDocLoadedViewState();
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final size = Size(constraints.maxWidth, constraints.maxHeight);
+
+        return MeasuredCanvas(canvasSize: size);
+      },
+    );
+  }
 }
 
-class _PdfDocLoadedViewState extends State<PdfDocLoadedView> {
-  static const int LOADING_MAX_WIDTH = 1;
-  static const int LOADING_VIEWPORT_WIDTH = 2;
+class MeasuredCanvas extends StatefulWidget {
+  final Size canvasSize;
 
-  int loadState = 0;
+  const MeasuredCanvas({
+    super.key,
+    required this.canvasSize,
+  });
 
-  final measureKey = new GlobalKey();
-  double maxLogicalPageWidth = 0;
-  double viewportWidth = 0;
-  double viewportPixelRatio = 0;
+  @override
+  _MeasuredCanvasState createState() => _MeasuredCanvasState();
+}
 
-  double lastContrainedWidth = 0;
+class _MeasuredCanvasState extends State<MeasuredCanvas> {
+  bool zooming = false;
+  double _baseScaleFactor = 1.0;
+  double _currentScaleFactor = 1.0;
 
-  /* ============ */
+  Offset focalPoint = Offset.zero;
 
-  late final RenderJob renderJob;
-  PageRange awaitingSet = PageRange.empty();
+  double get canvasWidth => widget.canvasSize.width;
+  double get canvasHeight => widget.canvasSize.height;
+
+  double get windowWidth => widget.canvasSize.width / _currentScaleFactor;
+  double get windowHeight => widget.canvasSize.height / _currentScaleFactor;
 
   @override
   void initState() {
     super.initState();
-    _calculateMaxLogicalPageWidth();
 
-    renderJob = new RenderJob(
-      loadCtrl: widget.loadCtrl,
-      onJobResult: () {
-        setState(() {
-          print("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
-          print("onJobResult");
-          print("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
-          awaitingSet = PageRange.empty();
-        });
-      },
-    );
-  }
-
-  @override
-  void dispose() {
-    renderJob.cancel();
-    super.dispose();
-  }
-
-  Future<void> _calculateMaxLogicalPageWidth() async {
-    setState(() {
-      loadState = loadState | LOADING_MAX_WIDTH;
-    });
-
-    final doc = widget.loadCtrl.getDocument();
-
-    double maxW = double.negativeInfinity;
-
-    for (int i = 0; i < doc.pagesCount; ++i) {
-      final page = await doc.getPage(i + 1);
-      if (page.width > maxW) maxW = page.width;
-      await page.close();
-    }
-
-    setState(() {
-      maxLogicalPageWidth = maxW;
-      loadState = loadState & ~LOADING_MAX_WIDTH;
-    });
-  }
-
-  Future<void> _onGeometryChanged() async {
-    setState(() {
-      loadState = loadState | LOADING_VIEWPORT_WIDTH;
-    });
-
-    await Future.delayed(Duration.zero);
-
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final renderObject =
-          measureKey.currentContext?.findRenderObject() as RenderBox?;
-
-      final viewportWidth = renderObject?.size.width ?? 0;
-
-      setState(() {
-        this.viewportWidth = viewportWidth;
-        loadState = loadState & ~LOADING_VIEWPORT_WIDTH;
-      });
-
-      //_renderPages();
-    });
-  }
-
-  Widget? _onPageDraw(BuildContext context, int index) {
-    if (index >= widget.pageCount)
-      return null;
-
-    //print('##########################################################');
-    //print("Build index ${index}");
-    //print('##########################################################');
-
-    final pageData = renderJob.getIndexed(index);
-
-    if (pageData != null) {
-      // render the page
-      final color = [Colors.blue, Colors.yellow, Colors.green][index % 3];
-      return Container(height: 200, color: color);
-    } else if (!awaitingSet.contains(index)) {
-      if (viewportWidth > 0 && viewportPixelRatio > 0) {
-        const int EXTENT = 20;
-        PageRange newRange = PageRange(
-          math.max(0, index - EXTENT),
-          math.min(index + EXTENT, widget.pageCount - 1),
-        );
-        // Note: no setState(...);
-        awaitingSet = newRange;
-        renderJob.cancel().then((_) {
-          renderJob.start(
-            newRange,
-            RenderViewportInfo(
-              width: viewportWidth,
-              pixelRatio: viewportPixelRatio,
-            ),
-          );
-        });
-      }
-    }
-
-    return Container(
-      color: Colors.grey[100],
-      alignment: Alignment.center,
-      height: 100,
-      child: const Text('Loading...'),
-    );
+    focalPoint = Offset(canvasWidth, canvasHeight) / 2;
   }
 
   @override
   Widget build(BuildContext context) {
-    if (loadState != 0) {
-      return Container(
-        width: double.infinity,
-        height: double.infinity,
-        key: measureKey,
-        alignment: Alignment.center,
-        child: const LabelledSpinner("Loading View"),
-      );
-    }
+    return GestureDetector(
+      onScaleStart: (details) {
+        _baseScaleFactor = _currentScaleFactor;
+        zooming = true;
+      },
+      onScaleUpdate: (details) {
+        if (details.scale == 1) {
+          setState(() {
+            focalPoint = focalPoint.translate(details.focalPointDelta.dx, 0);
+          });
+          return;
+        }
 
-    return LayoutBuilder(builder: (context, constraints) {
-      if (lastContrainedWidth != constraints.maxWidth) {
-        print('##########################################################');
-        print("Size miss");
-        print('##########################################################');
-        lastContrainedWidth = constraints.maxWidth;
-        viewportPixelRatio = MediaQuery.of(context).devicePixelRatio;
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          _onGeometryChanged();
+        setState(() {
+          focalPoint = details.localFocalPoint;
+          _currentScaleFactor =
+              (_baseScaleFactor * details.scale).clamp(1.0, 3.0);
         });
-      }
-
-      return ListView.builder(
-        itemBuilder: _onPageDraw,
-      );
-    });
+      },
+      onScaleEnd: (_) {
+        zooming = false;
+      },
+      child: Stack(
+        children: [
+          Container(
+            width: canvasWidth,
+            height: canvasHeight,
+            color: Colors.deepPurple,
+          ),
+          Positioned.fill(
+            child: Align(
+              alignment: Alignment(
+                (focalPoint.dx / canvasWidth) * 2 - 1,
+                (focalPoint.dy / canvasHeight) * 2 - 1,
+              ),
+              child: Container(
+                width: windowWidth,
+                height: windowHeight,
+                decoration: BoxDecoration(
+                  border: Border.all(
+                    width: 2.0,
+                    color: Colors.green[300]!,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
