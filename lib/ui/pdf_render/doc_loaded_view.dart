@@ -1,7 +1,7 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
-import 'rendering.dart';
+import 'render_controller.dart';
 
 class PdfDocLoadedView extends StatelessWidget {
   final RenderController renderCtrl;

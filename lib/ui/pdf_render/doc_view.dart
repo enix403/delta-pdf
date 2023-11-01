@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'misc.dart';
-import 'rendering.dart';
+import 'render_controller.dart';
 
 import 'doc_loaded_view.dart';
 

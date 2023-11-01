@@ -1,86 +1,43 @@
-// ignore_for_file: unused_field
-
 import 'dart:math' as math;
 import 'dart:async';
-import 'dart:collection';
 import 'dart:isolate';
-import 'dart:typed_data';
 
 import 'package:flutter/services.dart';
 import 'package:pdfx/pdfx.dart';
 
-class DocumentMetaData {
-  // Number of pages in the document
-  final int pageCount;
+export 'render_dto.dart';
+import 'render_dto.dart';
+import 'cmd_executor.dart';
 
-  // Logical page widths
-  final List<double> widths;
+/* ===================================== */
 
-  // Logical page heights
-  final List<double> heights;
+abstract class _RenderCommand {}
 
-  // Logical width of the widest page
-  final double maxWidth;
-
-  DocumentMetaData({
-    required this.pageCount,
-    required this.widths,
-    required this.heights,
-    required this.maxWidth,
-  });
-}
-
-class ViewportInfo {
-  // Physical width of the screen
-  final double width;
-
-  final double pixelRatio;
-
-  ViewportInfo({
-    required this.width,
-    required this.pixelRatio,
-  });
-}
-
-// Represents a rendered page
-class RenderResult {
-  // Index of this page
-  final int index;
-
-  // Rendered image
-  final Uint8List imageData;
-
+class _UpdateConfigCommand extends _RenderCommand {
+  final ViewportInfo viewportInfo;
   final int version;
 
-  RenderResult({
-    required this.index,
-    required this.imageData,
+  _UpdateConfigCommand({
+    required this.viewportInfo,
     required this.version,
   });
 }
 
-class PageChunk {
-  final int startIndex;
-  final int endIndex;
-
-  PageChunk(this.startIndex, this.endIndex);
-}
-
-class VersionedPageChunk {
+class _AddChunkCommand extends _RenderCommand {
   final PageChunk chunk;
   final int version;
 
-  VersionedPageChunk(this.chunk, this.version);
+  _AddChunkCommand(this.chunk, {required this.version});
 }
 
 /* ===================================== */
 
-class ExecutorArgs {
+class _WorkerArgs {
   final SendPort sendToMain;
   final PdfDocument document;
   final RootIsolateToken token;
 
-  ExecutorArgs({
+  _WorkerArgs({
     required this.sendToMain,
     required this.document,
     required this.token,
@@ -90,8 +47,6 @@ class ExecutorArgs {
 class RenderController {
   final PdfDocument document;
   late final DocumentMetaData metadata;
-
-  //late final RenderCommandExecutor _cmdExecutor;
 
   int _latestVersion = 0;
   int get latestVersion => _latestVersion;
@@ -185,7 +140,7 @@ class RenderController {
 
     Isolate.spawn(
       _workerIsolate,
-      ExecutorArgs(
+      _WorkerArgs(
         sendToMain: listenFromWorker.sendPort,
         document: document,
         token: token,
@@ -195,7 +150,7 @@ class RenderController {
     return completer.future;
   }
 
-  static void _workerIsolate(ExecutorArgs args) {
+  static void _workerIsolate(_WorkerArgs args) {
     BackgroundIsolateBinaryMessenger.ensureInitialized(args.token);
 
     final listenFromMain = ReceivePort();
@@ -208,9 +163,9 @@ class RenderController {
     });
 
     listenFromMain.listen((data) {
-      if (data is AddChunkCommand) {
+      if (data is _AddChunkCommand) {
         cmdExecutor.enqueue(data.version, data.chunk);
-      } else if (data is UpdateConfigCommand) {
+      } else if (data is _UpdateConfigCommand) {
         cmdExecutor.updateConfig(data.version, data.viewportInfo);
       }
     });
@@ -224,7 +179,7 @@ class RenderController {
   void enqueueChunk(PageChunk chunk) {
     _visitedChunks.add(chunk);
     _sendToWorker.send(
-      AddChunkCommand(
+      _AddChunkCommand(
         chunk,
         version: _latestVersion,
       ),
@@ -234,7 +189,7 @@ class RenderController {
   void updateViewport(ViewportInfo viewportInfo) {
     _tickVersion();
     _sendToWorker.send(
-      UpdateConfigCommand(
+      _UpdateConfigCommand(
         viewportInfo: viewportInfo,
         version: _latestVersion,
       ),
@@ -245,96 +200,4 @@ class RenderController {
     return _visitedChunks
         .any((chunk) => index >= chunk.startIndex && index <= chunk.endIndex);
   }
-}
-
-/* ===================================== */
-
-class RenderCommandExecutor {
-  final PdfDocument document;
-
-  RenderCommandExecutor({
-    required this.document,
-  });
-
-  late int _latestVersion;
-  late ViewportInfo _viewportInfo;
-  bool _processing = false;
-
-  final Queue<VersionedPageChunk> _queue = Queue();
-
-  final StreamController<RenderResult> _streamController = StreamController();
-  Stream<RenderResult> get stream => _streamController.stream;
-
-  void updateConfig(int version, ViewportInfo viewportInfo) {
-    _latestVersion = version;
-    _viewportInfo = viewportInfo;
-  }
-
-  void enqueue(int version, PageChunk chunk) {
-    _queue.add(VersionedPageChunk(chunk, version));
-    _startExecution();
-  }
-
-  void _startExecution() async {
-    if (_queue.isEmpty || _processing) return;
-
-    _processing = true;
-
-    while (_queue.isNotEmpty) {
-      await _processChunk(_queue.removeFirst());
-    }
-
-    _processing = false;
-  }
-
-  Future<void> _processChunk(VersionedPageChunk versionedChunk) async {
-    final chunk = versionedChunk.chunk;
-    for (int i = chunk.startIndex; i <= chunk.endIndex; ++i) {
-      if (versionedChunk.version != _latestVersion) return;
-
-      final page = await document.getPage(i + 1);
-      double aspectRatio = page.height / page.width;
-
-      final physicalSize =
-          Size(_viewportInfo.width, aspectRatio * _viewportInfo.width) *
-              _viewportInfo.pixelRatio;
-
-      final image = await page.render(
-        width: physicalSize.width,
-        height: physicalSize.height,
-        format: PdfPageImageFormat.jpeg,
-      );
-
-      await page.close();
-
-      if (image == null) continue;
-
-      _streamController.add(RenderResult(
-        index: i,
-        imageData: image.bytes,
-        version: versionedChunk.version,
-      ));
-    }
-  }
-}
-
-/* ===================================== */
-
-abstract class RenderCommand {}
-
-class UpdateConfigCommand extends RenderCommand {
-  final ViewportInfo viewportInfo;
-  final int version;
-
-  UpdateConfigCommand({
-    required this.viewportInfo,
-    required this.version,
-  });
-}
-
-class AddChunkCommand extends RenderCommand {
-  final PageChunk chunk;
-  final int version;
-
-  AddChunkCommand(this.chunk, {required this.version});
 }
