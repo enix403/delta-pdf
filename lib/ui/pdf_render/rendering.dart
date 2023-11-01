@@ -88,9 +88,7 @@ class RenderController {
   int _latestVersion = 0;
   final List<PageChunk> _visitedChunks = [];
 
-  RenderController(
-    this.document
-  );
+  RenderController(this.document);
 
   final StreamController<RenderResult> _renderStreamController =
       new StreamController();
@@ -103,41 +101,22 @@ class RenderController {
     _sendToWorker = await _initWorker();
   }
 
-  Future<SendPort> _initWorker() {
-    Completer<SendPort> completer = Completer();
-
-    final _listenFromWorker = ReceivePort();
-    _listenFromWorker.listen((data) {
-      if (data is SendPort) {
-        var mainToWorkerSender = data;
-        completer.complete(mainToWorkerSender);
-      } else {
-        // ... snap ...
-      }
-    });
-
-    Isolate.spawn(
-      _workerIsolate,
-      ExecutorArgs(
-        sendToMain: _listenFromWorker.sendPort,
-        document: document,
-      ),
-    );
-
-    return completer.future;
-  }
-
-  static void _workerIsolate(ExecutorArgs args) {
-    final _listenFromMain = ReceivePort();
-    args.sendToMain.send(_listenFromMain.sendPort);
-  }
-
   Future<void> _initMetadata() async {
+    // Dart closures (captures) do not play well with isolates. So wrap the
+    // Isolate.run(...) call in a function with all the necessary vairables passed
+    // in as arguments to prevent unnecessary captures
+    fire(
+      RootIsolateToken token,
+      PdfDocument document,
+    ) =>
+        Isolate.run(() async {
+          BackgroundIsolateBinaryMessenger.ensureInitialized(token);
+          return _constructMetaData(document);
+        });
+
     final token = RootIsolateToken.instance!;
-    metadata = await Isolate.run(() async {
-      BackgroundIsolateBinaryMessenger.ensureInitialized(token);
-      return _constructMetaData(document);
-    });
+
+    metadata = await fire(token, document);
   }
 
   static Future<DocumentMetaData> _constructMetaData(
@@ -169,6 +148,36 @@ class RenderController {
       maxWidth: maxWidth,
     );
   }
+
+  Future<SendPort> _initWorker() {
+    Completer<SendPort> completer = Completer();
+
+    final listenFromWorker = ReceivePort();
+    listenFromWorker.listen((data) {
+      if (data is SendPort) {
+        final sendToWorker = data;
+        completer.complete(sendToWorker);
+      } else {
+        // ... snap ...
+      }
+    });
+
+    Isolate.spawn(
+      _workerIsolate,
+      ExecutorArgs(
+        sendToMain: listenFromWorker.sendPort,
+        document: document,
+      ),
+    );
+
+    return completer.future;
+  }
+
+  static void _workerIsolate(ExecutorArgs args) {
+    final listenFromMain = ReceivePort();
+    args.sendToMain.send(listenFromMain.sendPort);
+  }
+
 
   void addChunk(int startIndex, int endIndex) {}
   void updateCanvas(CanvasInfo canvasInfo) {}

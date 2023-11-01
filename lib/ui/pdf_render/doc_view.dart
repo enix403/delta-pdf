@@ -19,7 +19,7 @@ class _PdfDocViewState extends State<PdfDocView> {
   LoadState _loadState = LoadState.OPENING;
   late final RenderPipeline _renderPipeline;
 
-  //late final rd.RenderController _renderController;
+  late final rd.RenderController _renderController;
 
   @override
   void initState() {
@@ -32,8 +32,8 @@ class _PdfDocViewState extends State<PdfDocView> {
         setState(() {
           _loadState = LoadState.PARSING;
         });
-        //_renderController = rd.RenderController(document);
-        //_renderController.init();
+        _renderController = rd.RenderController(document);
+        _renderController.init();
         return RenderPipeline.create(document);
       },
     ).then(
