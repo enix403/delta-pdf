@@ -62,9 +62,15 @@ class RenderResult {
 class PageChunk {
   final int startIndex;
   final int endIndex;
+
+  PageChunk(this.startIndex, this.endIndex);
+}
+
+class VersionedPageChunk {
+  final PageChunk chunk;
   final int version;
 
-  PageChunk(this.startIndex, this.endIndex, {required this.version});
+  VersionedPageChunk(this.chunk, this.version);
 }
 
 /* ===================================== */
@@ -72,10 +78,12 @@ class PageChunk {
 class ExecutorArgs {
   final SendPort sendToMain;
   final PdfDocument document;
+  final RootIsolateToken token;
 
   ExecutorArgs({
     required this.sendToMain,
     required this.document,
+    required this.token,
   });
 }
 
@@ -86,6 +94,7 @@ class RenderController {
   //late final RenderCommandExecutor _cmdExecutor;
 
   int _latestVersion = 0;
+  int get latestVersion => _latestVersion;
   final List<PageChunk> _visitedChunks = [];
 
   RenderController(this.document);
@@ -96,10 +105,18 @@ class RenderController {
 
   late final SendPort _sendToWorker;
 
+  static Future<RenderController> create(PdfDocument document) async {
+    final ctrl = RenderController(document);
+    await ctrl.init();
+    return ctrl;
+  }
+
   Future<void> init() async {
     await _initMetadata();
     _sendToWorker = await _initWorker();
   }
+
+  void dispose() {}
 
   Future<void> _initMetadata() async {
     // Dart closures (captures) do not play well with isolates. So wrap the
@@ -164,11 +181,14 @@ class RenderController {
       }
     });
 
+    final token = RootIsolateToken.instance!;
+
     Isolate.spawn(
       _workerIsolate,
       ExecutorArgs(
         sendToMain: listenFromWorker.sendPort,
         document: document,
+        token: token,
       ),
     );
 
@@ -176,6 +196,8 @@ class RenderController {
   }
 
   static void _workerIsolate(ExecutorArgs args) {
+    BackgroundIsolateBinaryMessenger.ensureInitialized(args.token);
+
     final listenFromMain = ReceivePort();
     args.sendToMain.send(listenFromMain.sendPort);
 
@@ -187,7 +209,7 @@ class RenderController {
 
     listenFromMain.listen((data) {
       if (data is AddChunkCommand) {
-        cmdExecutor.enqueue(data.chunk);
+        cmdExecutor.enqueue(data.version, data.chunk);
       } else if (data is UpdateConfigCommand) {
         cmdExecutor.updateConfig(data.version, data.viewportInfo);
       }
@@ -199,13 +221,13 @@ class RenderController {
     _latestVersion++;
   }
 
-  void addChunk(int startIndex, int endIndex) {
+  void enqueueChunk(PageChunk chunk) {
+    _visitedChunks.add(chunk);
     _sendToWorker.send(
-      AddChunkCommand(PageChunk(
-        startIndex,
-        endIndex,
+      AddChunkCommand(
+        chunk,
         version: _latestVersion,
-      )),
+      ),
     );
   }
 
@@ -219,7 +241,10 @@ class RenderController {
     );
   }
 
-  void isPageVisited(int index) {}
+  bool isPageVisited(int index) {
+    return _visitedChunks
+        .any((chunk) => index >= chunk.startIndex && index <= chunk.endIndex);
+  }
 }
 
 /* ===================================== */
@@ -235,7 +260,7 @@ class RenderCommandExecutor {
   late ViewportInfo _viewportInfo;
   bool _processing = false;
 
-  final Queue<PageChunk> _queue = Queue();
+  final Queue<VersionedPageChunk> _queue = Queue();
 
   final StreamController<RenderResult> _streamController = StreamController();
   Stream<RenderResult> get stream => _streamController.stream;
@@ -245,8 +270,8 @@ class RenderCommandExecutor {
     _viewportInfo = viewportInfo;
   }
 
-  void enqueue(PageChunk chunk) {
-    _queue.add(chunk);
+  void enqueue(int version, PageChunk chunk) {
+    _queue.add(VersionedPageChunk(chunk, version));
     _startExecution();
   }
 
@@ -262,9 +287,10 @@ class RenderCommandExecutor {
     _processing = false;
   }
 
-  Future<void> _processChunk(PageChunk chunk) async {
+  Future<void> _processChunk(VersionedPageChunk versionedChunk) async {
+    final chunk = versionedChunk.chunk;
     for (int i = chunk.startIndex; i <= chunk.endIndex; ++i) {
-      if (chunk.version != _latestVersion) return;
+      if (versionedChunk.version != _latestVersion) return;
 
       final page = await document.getPage(i + 1);
       double aspectRatio = page.height / page.width;
@@ -286,7 +312,7 @@ class RenderCommandExecutor {
       _streamController.add(RenderResult(
         index: i,
         imageData: image.bytes,
-        version: chunk.version,
+        version: versionedChunk.version,
       ));
     }
   }
@@ -308,6 +334,7 @@ class UpdateConfigCommand extends RenderCommand {
 
 class AddChunkCommand extends RenderCommand {
   final PageChunk chunk;
+  final int version;
 
-  AddChunkCommand(this.chunk);
+  AddChunkCommand(this.chunk, {required this.version});
 }

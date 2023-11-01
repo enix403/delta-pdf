@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'misc.dart';
-import 'pipeline.dart';
-import 'rendering.dart' as rd;
+import 'rendering.dart';
 
 import 'doc_loaded_view.dart';
 
@@ -17,9 +16,7 @@ enum LoadState { OPENING, PARSING, LOADED }
 
 class _PdfDocViewState extends State<PdfDocView> {
   LoadState _loadState = LoadState.OPENING;
-  late final RenderPipeline _renderPipeline;
-
-  late final rd.RenderController _renderController;
+  late final RenderController _renderController;
 
   @override
   void initState() {
@@ -32,14 +29,12 @@ class _PdfDocViewState extends State<PdfDocView> {
         setState(() {
           _loadState = LoadState.PARSING;
         });
-        _renderController = rd.RenderController(document);
-        _renderController.init();
-        return RenderPipeline.create(document);
+        return RenderController.create(document);
       },
     ).then(
       (pipeline) {
         setState(() {
-          _renderPipeline = pipeline;
+          _renderController = pipeline;
           _loadState = LoadState.LOADED;
         });
       },
@@ -48,7 +43,7 @@ class _PdfDocViewState extends State<PdfDocView> {
 
   @override
   void dispose() {
-    if (_loadState == LoadState.LOADED) _renderPipeline.dispose();
+    if (_loadState == LoadState.LOADED) _renderController.dispose();
     super.dispose();
   }
 
@@ -57,7 +52,7 @@ class _PdfDocViewState extends State<PdfDocView> {
     Widget child;
     if (_loadState == LoadState.LOADED) {
       child = PdfDocLoadedView(
-        pipeline: _renderPipeline,
+        renderCtrl: _renderController,
       );
     } else {
       final debugInfo = (_loadState == LoadState.OPENING ? "OPEN" : "PARSE");

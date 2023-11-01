@@ -1,14 +1,14 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
-import 'pipeline.dart';
+import 'rendering.dart';
 
 class PdfDocLoadedView extends StatelessWidget {
-  final RenderPipeline pipeline;
+  final RenderController renderCtrl;
 
   const PdfDocLoadedView({
     super.key,
-    required this.pipeline,
+    required this.renderCtrl,
   });
 
   @override
@@ -19,7 +19,7 @@ class PdfDocLoadedView extends StatelessWidget {
         final size = Size(constraints.maxWidth, constraints.maxHeight);
 
         return MeasuredCanvas(
-          pipeline: pipeline,
+          renderCtrl: renderCtrl,
           canvasSize: size,
           pixelRatio: viewportPixelRatio,
         );
@@ -31,11 +31,11 @@ class PdfDocLoadedView extends StatelessWidget {
 class MeasuredCanvas extends StatefulWidget {
   final Size canvasSize;
   final double pixelRatio;
-  final RenderPipeline pipeline;
+  final RenderController renderCtrl;
 
   const MeasuredCanvas({
     super.key,
-    required this.pipeline,
+    required this.renderCtrl,
     required this.canvasSize,
     required this.pixelRatio,
   });
@@ -48,7 +48,8 @@ class _MeasuredCanvasState extends State<MeasuredCanvas> {
   double get canvasWidth => widget.canvasSize.width;
   double get canvasHeight => widget.canvasSize.height;
 
-  RenderPipeline get pipeline => widget.pipeline;
+  RenderController get renderCtrl => widget.renderCtrl;
+  int get pageCount => renderCtrl.metadata.pageCount;
 
   List<RenderResult?> _results = [];
 
@@ -56,17 +57,16 @@ class _MeasuredCanvasState extends State<MeasuredCanvas> {
   void initState() {
     super.initState();
 
-    _results = List.filled(pipeline.totalPages, null);
+    _results = List.filled(pageCount, null);
 
-    pipeline.setViewportInfo(RenderViewportInfo(
+    renderCtrl.updateViewport(ViewportInfo(
       width: canvasWidth,
       pixelRatio: widget.pixelRatio,
     ));
 
-    pipeline.taskQueue.enqueue(PageChunk(0, 10));
+    renderCtrl.enqueueChunk(_chunkForIndex(0));
 
-    pipeline.taskQueue.stream.listen((result) {
-      if (result.version != pipeline.taskQueue.latestVersion) return;
+    renderCtrl.outputStream.listen((result) {
       //print("@@@@@@");
       //print("Rendered index ${result.index}");
       setState(() {
@@ -81,11 +81,10 @@ class _MeasuredCanvasState extends State<MeasuredCanvas> {
 
     if (oldWidget.canvasSize != widget.canvasSize ||
         oldWidget.pixelRatio != widget.pixelRatio) {
-      pipeline.setViewportInfo(RenderViewportInfo(
+      renderCtrl.updateViewport(ViewportInfo(
         width: canvasWidth,
         pixelRatio: widget.pixelRatio,
       ));
-      pipeline.taskQueue.tickVersion();
     }
   }
 
@@ -96,7 +95,7 @@ class _MeasuredCanvasState extends State<MeasuredCanvas> {
 
     return PageChunk(
       startIndex,
-      math.min(startIndex + CHUNK_SIZE - 1, pipeline.totalPages - 1),
+      math.min(startIndex + CHUNK_SIZE - 1, pageCount - 1),
     );
   }
 
@@ -109,20 +108,26 @@ class _MeasuredCanvasState extends State<MeasuredCanvas> {
           //print("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
           //print("Build index $index");
 
-          if (index >= pipeline.totalPages) return null;
+          if (index >= pageCount) return null;
 
-          final logicalSize = pipeline.logicalSizes.sizeAt(index);
+          final metadata = renderCtrl.metadata;
+
+          final logicalSize = Size(
+            metadata.widths[index],
+            metadata.heights[index],
+          );
+
           final physicalWidth =
-              canvasWidth * logicalSize.width / pipeline.maxLpWidth;
+              canvasWidth * logicalSize.width / metadata.maxWidth;
           final physicalHeight = physicalWidth / logicalSize.aspectRatio;
 
           final result = _results[index];
 
           Widget child;
           if (result == null ||
-              result.version != pipeline.taskQueue.latestVersion) {
-            if (!pipeline.isPageVisited(index)) {
-              pipeline.taskQueue.enqueue(_chunkForIndex(index));
+              result.version != renderCtrl.latestVersion) {
+            if (!renderCtrl.isPageVisited(index)) {
+              renderCtrl.enqueueChunk(_chunkForIndex(index));
             }
 
             // Empty box
@@ -135,7 +140,7 @@ class _MeasuredCanvasState extends State<MeasuredCanvas> {
             child = Container(
               color: Colors.white,
               child: Image.memory(
-                result.image.bytes,
+                result.imageData,
                 width: physicalWidth,
                 height: physicalHeight,
               ),
