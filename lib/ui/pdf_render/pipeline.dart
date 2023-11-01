@@ -33,7 +33,6 @@ class RenderPipeline {
   RenderPipeline(this.document);
 
   ChunksRenderTaskQueue? _taskQueue;
-
   ChunksRenderTaskQueue get taskQueue => _taskQueue!;
 
   void setViewportInfo(RenderViewportInfo info) {
@@ -109,6 +108,18 @@ class RenderViewportInfo {
   });
 }
 
+class RenderResult {
+  final int index;
+  final PdfPageImage image;
+  final int version;
+
+  RenderResult({
+    required this.index,
+    required this.image,
+    required this.version,
+  });
+}
+
 class PageChunk {
   final int startIndex;
   final int endIndex;
@@ -119,34 +130,41 @@ class PageChunk {
   );
 }
 
-class RenderResult {
-  final int index;
-  final PdfPageImage image;
+class VersionedPageChunk {
+  final PageChunk chunk;
+  final int version;
 
-  RenderResult({
-    required this.index,
-    required this.image,
-  });
+  VersionedPageChunk(this.chunk, this.version);
 }
 
 class ChunksRenderTaskQueue {
   final PdfDocument document;
   RenderViewportInfo _viewportInfo;
 
-  final Queue<PageChunk> _queue = Queue();
+  final Queue<VersionedPageChunk> _queue = Queue();
   final List<PageChunk> _visitedChunks = [];
   bool _processing = false;
 
   final StreamController<RenderResult> _streamController = StreamController();
   Stream<RenderResult> get stream => _streamController.stream;
 
+  int _latestVersion = 0;
+  int get latestVersion => _latestVersion;
+
   ChunksRenderTaskQueue({
     required this.document,
     required RenderViewportInfo viewportInfo,
   }) : _viewportInfo = viewportInfo;
 
+
+  void tickVersion() {
+    _latestVersion++;
+    _visitedChunks.clear();
+    _queue.clear();
+  }
+
   void enqueue(PageChunk chunk) {
-    _queue.add(chunk);
+    _queue.add(VersionedPageChunk(chunk, _latestVersion));
     _visitedChunks.add(chunk);
     _startExecution();
   }
@@ -167,8 +185,12 @@ class ChunksRenderTaskQueue {
     _processing = false;
   }
 
-  Future<void> _processChunk(PageChunk chunk) async {
+  Future<void> _processChunk(VersionedPageChunk versionedChunk) async {
+    final chunk = versionedChunk.chunk;
     for (int i = chunk.startIndex; i <= chunk.endIndex; ++i) {
+      if (versionedChunk.version != _latestVersion)
+        return;
+
       final page = await document.getPage(i + 1);
       double aspectRatio = page.height / page.width;
 
@@ -184,7 +206,13 @@ class ChunksRenderTaskQueue {
 
       await page.close();
 
-      _streamController.add(RenderResult(index: i, image: image!));
+      //await Future.delayed(Duration(seconds: 2));
+
+      _streamController.add(RenderResult(
+        index: i,
+        image: image!,
+        version: versionedChunk.version,
+      ));
     }
   }
 }

@@ -66,12 +66,27 @@ class _MeasuredCanvasState extends State<MeasuredCanvas> {
     pipeline.taskQueue.enqueue(PageChunk(0, 10));
 
     pipeline.taskQueue.stream.listen((result) {
+      if (result.version != pipeline.taskQueue.latestVersion) return;
       //print("@@@@@@");
       //print("Rendered index ${result.index}");
       setState(() {
         _results[result.index] = result;
       });
     });
+  }
+
+  @override
+  void didUpdateWidget(covariant MeasuredCanvas oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    if (oldWidget.canvasSize != widget.canvasSize ||
+        oldWidget.pixelRatio != widget.pixelRatio) {
+      pipeline.setViewportInfo(RenderViewportInfo(
+        width: canvasWidth,
+        pixelRatio: widget.pixelRatio,
+      ));
+      pipeline.taskQueue.tickVersion();
+    }
   }
 
   PageChunk _chunkForIndex(int index) {
@@ -104,7 +119,8 @@ class _MeasuredCanvasState extends State<MeasuredCanvas> {
           final result = _results[index];
 
           Widget child;
-          if (result == null) {
+          if (result == null ||
+              result.version != pipeline.taskQueue.latestVersion) {
             if (!pipeline.isPageVisited(index)) {
               pipeline.taskQueue.enqueue(_chunkForIndex(index));
             }
