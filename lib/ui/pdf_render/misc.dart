@@ -28,7 +28,7 @@ class LabelledSpinner extends StatelessWidget {
 
 Future<PdfDocument> loadDummyDocument() async {
   await DocumentTree.ensureTreeRoot();
-  final filepath = DocumentTree.resolveFromRoot(['calc.pdf']);
+  final filepath = DocumentTree.resolveFromRoot(['test.pdf']);
   final file = File(filepath);
 
   final bytes = await file.readAsBytes();

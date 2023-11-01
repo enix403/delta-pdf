@@ -90,6 +90,13 @@ class RenderPipeline {
   void dispose() {
     // TODO close the document
   }
+
+  bool isPageVisited(int index) {
+    if (_taskQueue == null) return false;
+
+    return _taskQueue!._visitedChunks
+        .any((chunk) => index >= chunk.startIndex && index <= chunk.endIndex);
+  }
 }
 
 class RenderViewportInfo {
@@ -106,10 +113,10 @@ class PageChunk {
   final int startIndex;
   final int endIndex;
 
-  PageChunk({
-    required this.startIndex,
-    required this.endIndex,
-  });
+  PageChunk(
+    this.startIndex,
+    this.endIndex,
+  );
 }
 
 class RenderResult {
@@ -127,6 +134,7 @@ class ChunksRenderTaskQueue {
   RenderViewportInfo _viewportInfo;
 
   final Queue<PageChunk> _queue = Queue();
+  final List<PageChunk> _visitedChunks = [];
   bool _processing = false;
 
   final StreamController<RenderResult> _streamController = StreamController();
@@ -139,6 +147,7 @@ class ChunksRenderTaskQueue {
 
   void enqueue(PageChunk chunk) {
     _queue.add(chunk);
+    _visitedChunks.add(chunk);
     _startExecution();
   }
 
@@ -170,7 +179,7 @@ class ChunksRenderTaskQueue {
       final image = await page.render(
         width: physicalSize.width,
         height: physicalSize.height,
-        format: PdfPageImageFormat.png,
+        format: PdfPageImageFormat.jpeg,
       );
 
       await page.close();
