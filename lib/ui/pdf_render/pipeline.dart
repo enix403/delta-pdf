@@ -1,3 +1,5 @@
+import 'dart:async';
+import 'dart:collection';
 import 'dart:isolate';
 import 'dart:math' as math;
 import 'package:flutter/services.dart';
@@ -29,6 +31,20 @@ class RenderPipeline {
   double get maxLpWidth => logicalSizes.maxWidth;
 
   RenderPipeline(this.document);
+
+  ChunksRenderTaskQueue? _taskQueue;
+
+  ChunksRenderTaskQueue get taskQueue => _taskQueue!;
+
+  void setViewportInfo(RenderViewportInfo info) {
+    if (_taskQueue == null)
+      _taskQueue = ChunksRenderTaskQueue(
+        document: document,
+        viewportInfo: info,
+      );
+    else
+      _taskQueue!.updateViewportInfo(info);
+  }
 
   static Future<RenderPipeline> create(PdfDocument document) async {
     final pipeline = RenderPipeline(document);
@@ -73,5 +89,93 @@ class RenderPipeline {
 
   void dispose() {
     // TODO close the document
+  }
+}
+
+class RenderViewportInfo {
+  final double width;
+  final double pixelRatio;
+
+  RenderViewportInfo({
+    required this.width,
+    required this.pixelRatio,
+  });
+}
+
+class PageChunk {
+  final int startIndex;
+  final int endIndex;
+
+  PageChunk({
+    required this.startIndex,
+    required this.endIndex,
+  });
+}
+
+class RenderResult {
+  final int index;
+  final PdfPageImage image;
+
+  RenderResult({
+    required this.index,
+    required this.image,
+  });
+}
+
+class ChunksRenderTaskQueue {
+  final PdfDocument document;
+  RenderViewportInfo _viewportInfo;
+
+  final Queue<PageChunk> _queue = Queue();
+  bool _processing = false;
+
+  final StreamController<RenderResult> _streamController = StreamController();
+  Stream<RenderResult> get stream => _streamController.stream;
+
+  ChunksRenderTaskQueue({
+    required this.document,
+    required RenderViewportInfo viewportInfo,
+  }) : _viewportInfo = viewportInfo;
+
+  void enqueue(PageChunk chunk) {
+    _queue.add(chunk);
+    _startExecution();
+  }
+
+  void updateViewportInfo(RenderViewportInfo viewportInfo) {
+    _viewportInfo = viewportInfo;
+  }
+
+  void _startExecution() async {
+    if (_queue.isEmpty || _processing) return;
+
+    _processing = true;
+
+    while (_queue.isNotEmpty) {
+      await _processChunk(_queue.removeFirst());
+    }
+
+    _processing = false;
+  }
+
+  Future<void> _processChunk(PageChunk chunk) async {
+    for (int i = chunk.startIndex; i <= chunk.endIndex; ++i) {
+      final page = await document.getPage(i + 1);
+      double aspectRatio = page.height / page.width;
+
+      final physicalSize =
+          Size(_viewportInfo.width, aspectRatio * _viewportInfo.width) *
+              _viewportInfo.pixelRatio;
+
+      final image = await page.render(
+        width: physicalSize.width,
+        height: physicalSize.height,
+        format: PdfPageImageFormat.png,
+      );
+
+      await page.close();
+
+      _streamController.add(RenderResult(index: i, image: image!));
+    }
   }
 }

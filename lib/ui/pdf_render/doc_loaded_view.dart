@@ -12,11 +12,16 @@ class PdfDocLoadedView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final viewportPixelRatio = MediaQuery.of(context).devicePixelRatio;
     return LayoutBuilder(
       builder: (context, constraints) {
         final size = Size(constraints.maxWidth, constraints.maxHeight);
 
-        return MeasuredCanvas(canvasSize: size, pipeline: pipeline);
+        return MeasuredCanvas(
+          pipeline: pipeline,
+          canvasSize: size,
+          pixelRatio: viewportPixelRatio,
+        );
       },
     );
   }
@@ -24,12 +29,14 @@ class PdfDocLoadedView extends StatelessWidget {
 
 class MeasuredCanvas extends StatefulWidget {
   final Size canvasSize;
+  final double pixelRatio;
   final RenderPipeline pipeline;
 
   const MeasuredCanvas({
     super.key,
-    required this.canvasSize,
     required this.pipeline,
+    required this.canvasSize,
+    required this.pixelRatio,
   });
 
   @override
@@ -47,6 +54,17 @@ class _MeasuredCanvasState extends State<MeasuredCanvas> {
   @override
   void initState() {
     super.initState();
+    pipeline.setViewportInfo(RenderViewportInfo(
+      width: canvasWidth,
+      pixelRatio: widget.pixelRatio,
+    ));
+    
+    pipeline.taskQueue.enqueue(PageChunk(startIndex: 0, endIndex: 10));
+
+    pipeline.taskQueue.stream.listen((value) {
+      print("@@@@@@");
+      print("Rendered index ${value.index}");
+    });
   }
 
   @override
