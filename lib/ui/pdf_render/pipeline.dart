@@ -10,6 +10,9 @@ class DimesionList {
   // Logical page heights
   List<double> heights = [];
 
+  // Widest page
+  double maxWidth = 0;
+
   Size sizeAt(int i) => new Size(widths[i], heights[i]);
 }
 
@@ -22,8 +25,8 @@ class RenderPipeline {
   // Logical sizes each page
   late final DimesionList logicalSizes;
 
-  // Logical width of the widest page
-  late final double maxLpWidth;
+  // Width of widest page
+  double get maxLpWidth => logicalSizes.maxWidth;
 
   RenderPipeline(this.document);
 
@@ -42,14 +45,20 @@ class RenderPipeline {
     dmList.widths = List.filled(totalPages, 0);
     dmList.heights = List.filled(totalPages, 0);
 
+    double maxWidth = double.negativeInfinity;
+
     for (int i = 0; i < totalPages; ++i) {
       final page = await document.getPage(i + 1);
 
       dmList.widths[i] = page.width;
       dmList.heights[i] = page.height;
 
+      maxWidth = math.max(maxWidth, page.width);
+
       await page.close();
     }
+
+    dmList.maxWidth = maxWidth;
 
     return dmList;
   }
@@ -60,13 +69,6 @@ class RenderPipeline {
       BackgroundIsolateBinaryMessenger.ensureInitialized(token);
       return _calculateLogicalWidths(document);
     });
-
-    double maxWidth = double.negativeInfinity;
-
-    for (int i = 0; i < totalPages; ++i)
-      maxWidth = math.max(maxWidth, logicalSizes.widths[i]);
-
-    maxLpWidth = maxWidth;
   }
 
   void dispose() {

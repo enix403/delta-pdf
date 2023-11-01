@@ -56,7 +56,7 @@ class _PdfDocViewState extends State<PdfDocView> {
       );
     } else {
       final debugInfo = (_loadState == LoadState.OPENING ? "OPEN" : "PARSE");
-      child = LabelledSpinner("Opening Document(" + debugInfo + ")");
+      child = LabelledSpinner("Opening Document (" + debugInfo + ")");
     }
 
     return Scaffold(
