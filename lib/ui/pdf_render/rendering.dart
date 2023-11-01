@@ -1,0 +1,126 @@
+// ignore_for_file: unused_field
+
+import 'dart:async';
+import 'dart:collection';
+import 'dart:typed_data';
+
+import 'package:pdfx/pdfx.dart';
+
+class DocumentMetaData {
+  // Number of pages in the document
+  final int pageCount;
+
+  // Logical page widths
+  final List<double> widths;
+
+  // Logical page heights
+  final List<double> heights;
+
+  // Logical width of the widest page
+  final double maxWidth;
+
+  DocumentMetaData({
+    required this.pageCount,
+    required this.widths,
+    required this.heights,
+    required this.maxWidth,
+  });
+}
+
+class CanvasInfo {
+  // Physical width of the screen
+  final double width;
+
+  final double pixelRatio;
+
+  CanvasInfo({
+    required this.width,
+    required this.pixelRatio,
+  });
+}
+
+// Represents a rendered page
+class RenderResult {
+  // Index of this page
+  final int index;
+
+  // Rendered image
+  final Uint8List imageData;
+
+  final int version;
+
+  RenderResult({
+    required this.index,
+    required this.imageData,
+    required this.version,
+  });
+}
+
+class PageChunk {
+  final int startIndex;
+  final int endIndex;
+  final int version;
+
+  PageChunk(this.startIndex, this.endIndex, {required this.version});
+}
+
+/* ===================================== */
+
+class RenderController {
+  final PdfDocument document;
+  final DocumentMetaData metadata;
+
+  final RenderCommandExecutor _cmdExecutor;
+
+  int _latestVersion = 0;
+  final List<PageChunk> _visitedChunks = [];
+
+  RenderController({
+    required this.document,
+    required this.metadata,
+  }) : _cmdExecutor = RenderCommandExecutor(
+          document: document,
+          metadata: metadata,
+        );
+
+  final StreamController<RenderResult> _streamController =
+      new StreamController();
+  Stream<RenderResult> get stream => _streamController.stream;
+
+  void addChunk(int startIndex, int endIndex) {}
+  void updateCanvas(CanvasInfo canvasInfo) {}
+  void isPageVisited(int index) {}
+}
+
+/* ===================================== */
+
+class RenderCommandExecutor {
+  final PdfDocument document;
+  final DocumentMetaData metadata;
+
+  late int _latestVersion;
+  final Queue<PageChunk> _queue = Queue();
+
+  RenderCommandExecutor({
+    required this.document,
+    required this.metadata,
+  });
+}
+
+/* ===================================== */
+
+abstract class RenderCommand {}
+
+class UpdateConfigCommand extends RenderCommand {
+  final CanvasInfo canvasInfo;
+
+  UpdateConfigCommand({
+    required this.canvasInfo,
+  });
+}
+
+class AddChunkCommand extends RenderCommand {
+  final PageChunk chunk;
+
+  AddChunkCommand(this.chunk);
+}
