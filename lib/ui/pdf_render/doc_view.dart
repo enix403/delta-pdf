@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'misc.dart';
 import 'pipeline.dart';
+import 'rendering.dart' as rd;
 
 import 'doc_loaded_view.dart';
 
@@ -18,6 +19,8 @@ class _PdfDocViewState extends State<PdfDocView> {
   LoadState _loadState = LoadState.OPENING;
   late final RenderPipeline _renderPipeline;
 
+  //late final rd.RenderController _renderController;
+
   @override
   void initState() {
     super.initState();
@@ -29,6 +32,8 @@ class _PdfDocViewState extends State<PdfDocView> {
         setState(() {
           _loadState = LoadState.PARSING;
         });
+        //_renderController = rd.RenderController(document);
+        //_renderController.init();
         return RenderPipeline.create(document);
       },
     ).then(

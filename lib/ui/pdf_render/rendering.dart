@@ -1,9 +1,12 @@
 // ignore_for_file: unused_field
 
+import 'dart:math' as math;
 import 'dart:async';
 import 'dart:collection';
+import 'dart:isolate';
 import 'dart:typed_data';
 
+import 'package:flutter/services.dart';
 import 'package:pdfx/pdfx.dart';
 
 class DocumentMetaData {
@@ -66,26 +69,106 @@ class PageChunk {
 
 /* ===================================== */
 
+class ExecutorArgs {
+  final SendPort sendToMain;
+  final PdfDocument document;
+
+  ExecutorArgs({
+    required this.sendToMain,
+    required this.document,
+  });
+}
+
 class RenderController {
   final PdfDocument document;
-  final DocumentMetaData metadata;
+  late final DocumentMetaData metadata;
 
-  final RenderCommandExecutor _cmdExecutor;
+  //late final RenderCommandExecutor _cmdExecutor;
 
   int _latestVersion = 0;
   final List<PageChunk> _visitedChunks = [];
 
-  RenderController({
-    required this.document,
-    required this.metadata,
-  }) : _cmdExecutor = RenderCommandExecutor(
-          document: document,
-          metadata: metadata,
-        );
+  RenderController(
+    this.document
+  );
 
-  final StreamController<RenderResult> _streamController =
+  final StreamController<RenderResult> _renderStreamController =
       new StreamController();
-  Stream<RenderResult> get stream => _streamController.stream;
+  Stream<RenderResult> get stream => _renderStreamController.stream;
+
+  late final SendPort _sendToWorker;
+
+  Future<void> init() async {
+    await _initMetadata();
+    _sendToWorker = await _initWorker();
+  }
+
+  Future<SendPort> _initWorker() {
+    Completer<SendPort> completer = Completer();
+
+    final _listenFromWorker = ReceivePort();
+    _listenFromWorker.listen((data) {
+      if (data is SendPort) {
+        var mainToWorkerSender = data;
+        completer.complete(mainToWorkerSender);
+      } else {
+        // ... snap ...
+      }
+    });
+
+    Isolate.spawn(
+      _workerIsolate,
+      ExecutorArgs(
+        sendToMain: _listenFromWorker.sendPort,
+        document: document,
+      ),
+    );
+
+    return completer.future;
+  }
+
+  static void _workerIsolate(ExecutorArgs args) {
+    final _listenFromMain = ReceivePort();
+    args.sendToMain.send(_listenFromMain.sendPort);
+  }
+
+  Future<void> _initMetadata() async {
+    final token = RootIsolateToken.instance!;
+    metadata = await Isolate.run(() async {
+      BackgroundIsolateBinaryMessenger.ensureInitialized(token);
+      return _constructMetaData(document);
+    });
+  }
+
+  static Future<DocumentMetaData> _constructMetaData(
+    PdfDocument document,
+  ) async {
+    int totalPages = document.pagesCount;
+    List<double> widths = List.filled(totalPages, 0);
+    List<double> heights = List.filled(totalPages, 0);
+
+    double maxWidth = double.negativeInfinity;
+
+    for (int i = 0; i < totalPages; ++i) {
+      final page = await document.getPage(i + 1);
+
+      widths[i] = page.width;
+      heights[i] = page.height;
+
+      maxWidth = math.max(maxWidth, page.width);
+
+      await page.close();
+    }
+
+    maxWidth = maxWidth;
+
+    return DocumentMetaData(
+      pageCount: totalPages,
+      widths: widths,
+      heights: heights,
+      maxWidth: maxWidth,
+    );
+  }
 
   void addChunk(int startIndex, int endIndex) {}
   void updateCanvas(CanvasInfo canvasInfo) {}
@@ -95,16 +178,11 @@ class RenderController {
 /* ===================================== */
 
 class RenderCommandExecutor {
-  final PdfDocument document;
-  final DocumentMetaData metadata;
+  late final PdfDocument document;
+  late final DocumentMetaData metadata;
 
   late int _latestVersion;
   final Queue<PageChunk> _queue = Queue();
-
-  RenderCommandExecutor({
-    required this.document,
-    required this.metadata,
-  });
 }
 
 /* ===================================== */
