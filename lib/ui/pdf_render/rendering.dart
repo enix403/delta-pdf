@@ -30,13 +30,13 @@ class DocumentMetaData {
   });
 }
 
-class CanvasInfo {
+class ViewportInfo {
   // Physical width of the screen
   final double width;
 
   final double pixelRatio;
 
-  CanvasInfo({
+  ViewportInfo({
     required this.width,
     required this.pixelRatio,
   });
@@ -92,7 +92,7 @@ class RenderController {
 
   final StreamController<RenderResult> _renderStreamController =
       new StreamController();
-  Stream<RenderResult> get stream => _renderStreamController.stream;
+  Stream<RenderResult> get outputStream => _renderStreamController.stream;
 
   late final SendPort _sendToWorker;
 
@@ -157,8 +157,10 @@ class RenderController {
       if (data is SendPort) {
         final sendToWorker = data;
         completer.complete(sendToWorker);
-      } else {
-        // ... snap ...
+      } else if (data is RenderResult) {
+        final result = data;
+        if (result.version == _latestVersion)
+          _renderStreamController.add(result);
       }
     });
 
@@ -176,22 +178,118 @@ class RenderController {
   static void _workerIsolate(ExecutorArgs args) {
     final listenFromMain = ReceivePort();
     args.sendToMain.send(listenFromMain.sendPort);
+
+    final cmdExecutor = RenderCommandExecutor(document: args.document);
+
+    cmdExecutor.stream.listen((result) {
+      args.sendToMain.send(result);
+    });
+
+    listenFromMain.listen((data) {
+      if (data is AddChunkCommand) {
+        cmdExecutor.enqueue(data.chunk);
+      } else if (data is UpdateConfigCommand) {
+        cmdExecutor.updateConfig(data.version, data.viewportInfo);
+      }
+    });
   }
 
+  void _tickVersion() {
+    _visitedChunks.clear();
+    _latestVersion++;
+  }
 
-  void addChunk(int startIndex, int endIndex) {}
-  void updateCanvas(CanvasInfo canvasInfo) {}
+  void addChunk(int startIndex, int endIndex) {
+    _sendToWorker.send(
+      AddChunkCommand(PageChunk(
+        startIndex,
+        endIndex,
+        version: _latestVersion,
+      )),
+    );
+  }
+
+  void updateViewport(ViewportInfo viewportInfo) {
+    _tickVersion();
+    _sendToWorker.send(
+      UpdateConfigCommand(
+        viewportInfo: viewportInfo,
+        version: _latestVersion,
+      ),
+    );
+  }
+
   void isPageVisited(int index) {}
 }
 
 /* ===================================== */
 
 class RenderCommandExecutor {
-  late final PdfDocument document;
-  late final DocumentMetaData metadata;
+  final PdfDocument document;
+
+  RenderCommandExecutor({
+    required this.document,
+  });
 
   late int _latestVersion;
+  late ViewportInfo _viewportInfo;
+  bool _processing = false;
+
   final Queue<PageChunk> _queue = Queue();
+
+  final StreamController<RenderResult> _streamController = StreamController();
+  Stream<RenderResult> get stream => _streamController.stream;
+
+  void updateConfig(int version, ViewportInfo viewportInfo) {
+    _latestVersion = version;
+    _viewportInfo = viewportInfo;
+  }
+
+  void enqueue(PageChunk chunk) {
+    _queue.add(chunk);
+    _startExecution();
+  }
+
+  void _startExecution() async {
+    if (_queue.isEmpty || _processing) return;
+
+    _processing = true;
+
+    while (_queue.isNotEmpty) {
+      await _processChunk(_queue.removeFirst());
+    }
+
+    _processing = false;
+  }
+
+  Future<void> _processChunk(PageChunk chunk) async {
+    for (int i = chunk.startIndex; i <= chunk.endIndex; ++i) {
+      if (chunk.version != _latestVersion) return;
+
+      final page = await document.getPage(i + 1);
+      double aspectRatio = page.height / page.width;
+
+      final physicalSize =
+          Size(_viewportInfo.width, aspectRatio * _viewportInfo.width) *
+              _viewportInfo.pixelRatio;
+
+      final image = await page.render(
+        width: physicalSize.width,
+        height: physicalSize.height,
+        format: PdfPageImageFormat.jpeg,
+      );
+
+      await page.close();
+
+      if (image == null) continue;
+
+      _streamController.add(RenderResult(
+        index: i,
+        imageData: image.bytes,
+        version: chunk.version,
+      ));
+    }
+  }
 }
 
 /* ===================================== */
@@ -199,10 +297,12 @@ class RenderCommandExecutor {
 abstract class RenderCommand {}
 
 class UpdateConfigCommand extends RenderCommand {
-  final CanvasInfo canvasInfo;
+  final ViewportInfo viewportInfo;
+  final int version;
 
   UpdateConfigCommand({
-    required this.canvasInfo,
+    required this.viewportInfo,
+    required this.version,
   });
 }
 
