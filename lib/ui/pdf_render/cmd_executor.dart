@@ -69,10 +69,10 @@ class RenderCommandExecutor {
       if (versionedChunk.version != _latestVersion) return true;
 
       final page = await document.getPage(i + 1);
-      double aspectRatio = page.height / page.width;
+      double invAspectRatio = page.height / page.width;
 
       final physicalSize =
-          Size(_viewportInfo.width, aspectRatio * _viewportInfo.width) *
+          Size(_viewportInfo.width, invAspectRatio * _viewportInfo.width) *
               _viewportInfo.pixelRatio;
 
       final image = await page.render(
@@ -88,6 +88,7 @@ class RenderCommandExecutor {
       _streamController.add(RenderResult(
         index: i,
         imageData: image.bytes,
+        invAspectRatio: invAspectRatio,
         version: versionedChunk.version,
       ));
     }

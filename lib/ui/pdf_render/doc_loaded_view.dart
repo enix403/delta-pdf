@@ -105,38 +105,30 @@ class _MeasuredCanvasState extends State<MeasuredCanvas> {
       color: Color(0xFFE0E0E0),
       child: ListView.builder(
         itemBuilder: (_, index) {
-          //print("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
-          //print("Build index $index");
+          print("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
+          print("Build index $index");
 
           if (index >= pageCount) return null;
 
-          final metadata = renderCtrl.metadata;
-
-          final logicalSize = Size(
-            metadata.widths[index],
-            metadata.heights[index],
-          );
-
-          final physicalWidth =
-              canvasWidth * logicalSize.width / metadata.maxWidth;
-          final physicalHeight = physicalWidth / logicalSize.aspectRatio;
+          if (!renderCtrl.isPageVisited(index)) {
+            renderCtrl.enqueueChunk(_chunkForIndex(index));
+          }
 
           final result = _results[index];
 
           Widget child;
-          if (result == null ||
-              result.version != renderCtrl.latestVersion) {
-            if (!renderCtrl.isPageVisited(index)) {
-              renderCtrl.enqueueChunk(_chunkForIndex(index));
-            }
-
+          if (result == null) {
             // Empty box
             child = Container(
-              color: [Colors.purple, Colors.green, Colors.red][1],
-              width: physicalWidth,
-              height: physicalHeight,
+              color: [Colors.purple, Colors.green, Colors.red][2],
+              width: canvasWidth,
+              height: 400,
             );
           } else {
+            
+            final physicalWidth = canvasWidth;
+            final physicalHeight = physicalWidth * result.invAspectRatio;
+
             child = Container(
               color: Colors.white,
               child: Image.memory(

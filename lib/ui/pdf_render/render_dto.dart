@@ -41,11 +41,15 @@ class RenderResult {
   // Rendered image
   final Uint8List imageData;
 
+  // Invert of the aspect ratio of the image equal to height / width;
+  final double invAspectRatio;
+
   final int version;
 
   RenderResult({
     required this.index,
     required this.imageData,
+    required this.invAspectRatio,
     required this.version,
   });
 }
