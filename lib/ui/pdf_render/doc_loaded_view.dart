@@ -57,6 +57,10 @@ class _MeasuredCanvasState extends State<MeasuredCanvas> {
   Timer? _pageReceivedDebouce;
   double _estimatedPageHeight = 400;
 
+  double _panStartX = -1; // -1 to +1
+  double _baseOffsetX = -1; // -1 to +1
+  double _offsetX = -1; // -1 to +1
+
   @override
   void initState() {
     super.initState();
@@ -111,8 +115,7 @@ class _MeasuredCanvasState extends State<MeasuredCanvas> {
     for (int i = 0; i < renderCtrl.visitedChunks.length; ++i) {
       final chunk = renderCtrl.visitedChunks[i];
 
-      if (index >= chunk.startIndex && index <= chunk.endIndex)
-        return null;
+      if (index >= chunk.startIndex && index <= chunk.endIndex) return null;
 
       if (index > chunk.endIndex)
         endOfLeft = math.max(endOfLeft, chunk.endIndex);
@@ -128,8 +131,7 @@ class _MeasuredCanvasState extends State<MeasuredCanvas> {
     return PageChunk(startIndex, index, endIndex);
   }
 
-  @override
-  Widget build(BuildContext context) {
+  Widget _buildScroller(BuildContext context) {
     return Container(
       color: Color(0xFFE0E0E0),
       child: ListView.builder(
@@ -151,23 +153,32 @@ class _MeasuredCanvasState extends State<MeasuredCanvas> {
           if (result == null) {
             // Empty box
             child = Container(
-              //color: [Colors.purple, Colors.green, Colors.red][2],
               color: Colors.white,
               width: canvasWidth,
               height: _estimatedPageHeight,
             );
           } else {
-            final physicalWidth = canvasWidth;
+            final physicalWidth = canvasWidth * 2;
             final physicalHeight = physicalWidth * result.invAspectRatio;
             _estimatedPageHeight = physicalHeight;
 
+            final imageWidget = UnconstrainedBox(
+              alignment: Alignment.topLeft,
+              constrainedAxis: Axis.vertical,
+              child: SizedOverflowBox(
+                alignment: Alignment(_offsetX, -1),
+                size: Size(canvasWidth, physicalHeight),
+                child: Image.memory(
+                  result.imageData,
+                  width: physicalWidth,
+                  height: physicalHeight,
+                ),
+              ),
+            );
+
             child = Container(
               color: Colors.white,
-              child: Image.memory(
-                result.imageData,
-                width: physicalWidth,
-                height: physicalHeight,
-              ),
+              child: imageWidget,
             );
           }
 
@@ -182,6 +193,23 @@ class _MeasuredCanvasState extends State<MeasuredCanvas> {
           );
         },
       ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onPanStart: (details) {
+        _baseOffsetX = _offsetX;
+        _panStartX = details.globalPosition.dx;
+      },
+      onPanUpdate: (details) {
+        setState(() {
+          final delta = details.globalPosition.dx - _panStartX;
+          _offsetX = (_baseOffsetX - delta / 150).clamp(-1, 1);
+        });
+      },
+      child: _buildScroller(context),
     );
   }
 }
