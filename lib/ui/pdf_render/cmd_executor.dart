@@ -50,8 +50,7 @@ class RenderCommandExecutor {
 
     while (_queue.isNotEmpty) {
       final shouldContinue = await _processChunk(_queue.removeFirst());
-      if (!shouldContinue)
-        break;
+      if (!shouldContinue) break;
     }
 
     _processing = false;
@@ -60,7 +59,21 @@ class RenderCommandExecutor {
   // Returns true if the processing should continue, false otherwise
   Future<bool> _processChunk(_VersionedPageChunk versionedChunk) async {
     final chunk = versionedChunk.chunk;
-    for (int i = chunk.startIndex; i <= chunk.endIndex; ++i) {
+
+    int len = chunk.endIndex - chunk.startIndex + 1;
+
+    int move = 0;
+    int delta = 0;
+
+    bool endReached = false;
+
+    print("===================================");
+    print("RENDERING CHUNK");
+    print(chunk.startIndex);
+    print(chunk.focusIndex);
+    print(chunk.endIndex);
+
+    for (int i = 0; i < len; ++i) {
       if (_closed) {
         afterClosed();
         return false;
@@ -68,7 +81,36 @@ class RenderCommandExecutor {
 
       if (versionedChunk.version != _latestVersion) return true;
 
-      final page = await document.getPage(i + 1);
+      int currentIndex;
+
+      if (endReached) {
+        // If either of the two ends have been visited, then we visit the remaning
+        // indices in the opposite direction linearly
+        delta += move;
+        currentIndex = chunk.focusIndex + delta;
+      } else {
+        // This makes the variable `delta` generate the
+        // sequence 0, +1, -1, +2, -2, ...
+        delta = move - delta;
+        move = 1 - move;
+        // Oscillates around the focusIndex so that pages nearest to
+        // focusIndex get rendered first
+        currentIndex = chunk.focusIndex + delta;
+
+        if (currentIndex == chunk.startIndex) {
+          delta = -delta + 1;
+          move = 1;
+          endReached = true;
+        } else if (currentIndex == chunk.endIndex) {
+          delta = -delta;
+          move = -1;
+          endReached = true;
+        }
+      }
+
+      print("+++++++++ => ${delta}");
+
+      final page = await document.getPage(currentIndex + 1);
       double invAspectRatio = page.height / page.width;
 
       final physicalSize =
@@ -86,7 +128,7 @@ class RenderCommandExecutor {
       if (image == null) continue;
 
       _streamController.add(RenderResult(
-        index: i,
+        index: currentIndex,
         imageData: image.bytes,
         invAspectRatio: invAspectRatio,
         version: versionedChunk.version,

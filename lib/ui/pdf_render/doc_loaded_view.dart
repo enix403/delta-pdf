@@ -68,7 +68,7 @@ class _MeasuredCanvasState extends State<MeasuredCanvas> {
       pixelRatio: widget.pixelRatio,
     ));
 
-    renderCtrl.enqueueChunk(_chunkForIndex(0));
+    renderCtrl.enqueueChunk(_generateChunk(0)!);
 
     renderCtrl.outputStream.listen((result) {
       //print("@@@@@@");
@@ -102,15 +102,30 @@ class _MeasuredCanvasState extends State<MeasuredCanvas> {
     }
   }
 
-  PageChunk _chunkForIndex(int index) {
-    const CHUNK_SIZE = 16;
+  // Returns null if a chunk could not be generated (which happens if
+  // there exists a chunk fot the index already)
+  PageChunk? _generateChunk(int index) {
+    int endOfLeft = -1;
+    int startOfRight = pageCount;
 
-    int startIndex = (index / CHUNK_SIZE).floor() * CHUNK_SIZE;
+    for (int i = 0; i < renderCtrl.visitedChunks.length; ++i) {
+      final chunk = renderCtrl.visitedChunks[i];
 
-    return PageChunk(
-      startIndex,
-      math.min(startIndex + CHUNK_SIZE - 1, pageCount - 1),
-    );
+      if (index >= chunk.startIndex && index <= chunk.endIndex)
+        return null;
+
+      if (index > chunk.endIndex)
+        endOfLeft = math.max(endOfLeft, chunk.endIndex);
+      else if (index < chunk.startIndex)
+        startOfRight = math.min(startOfRight, chunk.startIndex);
+    }
+
+    const HALF_CHUNK_SIZE = 8;
+
+    final int startIndex = math.max(endOfLeft + 1, index - HALF_CHUNK_SIZE);
+    final int endIndex = math.min(startOfRight - 1, index + HALF_CHUNK_SIZE);
+
+    return PageChunk(startIndex, index, endIndex);
   }
 
   @override
@@ -124,8 +139,10 @@ class _MeasuredCanvasState extends State<MeasuredCanvas> {
 
           if (index >= pageCount) return null;
 
-          if (!renderCtrl.isPageVisited(index)) {
-            renderCtrl.enqueueChunk(_chunkForIndex(index));
+          final chunk = _generateChunk(index);
+
+          if (chunk != null) {
+            renderCtrl.enqueueChunk(chunk);
           }
 
           final result = _results[index];
@@ -155,12 +172,9 @@ class _MeasuredCanvasState extends State<MeasuredCanvas> {
           }
 
           return Column(
-            crossAxisAlignment: CrossAxisAlignment.center,
             mainAxisSize: MainAxisSize.min,
             children: [
-              GestureDetector(
-                child: child,
-              ),
+              child,
               const SizedBox(
                 height: 6,
               )

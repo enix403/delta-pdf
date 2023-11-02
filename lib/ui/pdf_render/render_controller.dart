@@ -53,6 +53,7 @@ class RenderController {
   int _latestVersion = 0;
   int get latestVersion => _latestVersion;
   final List<PageChunk> _visitedChunks = [];
+  List<PageChunk> get visitedChunks => _visitedChunks;
 
   RenderController(this.document);
 
@@ -157,11 +158,6 @@ class RenderController {
         version: _latestVersion,
       ),
     );
-  }
-
-  bool isPageVisited(int index) {
-    return _visitedChunks
-        .any((chunk) => index >= chunk.startIndex && index <= chunk.endIndex);
   }
 
   // [NOTE]: RenderController must not be used after a call to this method

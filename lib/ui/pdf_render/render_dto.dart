@@ -35,7 +35,8 @@ class RenderResult {
 
 class PageChunk {
   final int startIndex;
+  final int focusIndex;
   final int endIndex;
 
-  PageChunk(this.startIndex, this.endIndex);
+  PageChunk(this.startIndex, this.focusIndex, this.endIndex);
 }
