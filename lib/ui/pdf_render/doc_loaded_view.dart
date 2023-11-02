@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
@@ -53,6 +54,9 @@ class _MeasuredCanvasState extends State<MeasuredCanvas> {
 
   List<RenderResult?> _results = [];
 
+  Timer? _pageReceivedDebouce;
+  double _estimatedPageHeight = 400;
+
   @override
   void initState() {
     super.initState();
@@ -69,10 +73,20 @@ class _MeasuredCanvasState extends State<MeasuredCanvas> {
     renderCtrl.outputStream.listen((result) {
       //print("@@@@@@");
       //print("Rendered index ${result.index}");
-      setState(() {
-        _results[result.index] = result;
+      _results[result.index] = result;
+
+      if (_pageReceivedDebouce?.isActive ?? false)
+        _pageReceivedDebouce!.cancel();
+      _pageReceivedDebouce = Timer(const Duration(milliseconds: 116), () {
+        setState(() {});
       });
     });
+  }
+
+  @override
+  void dispose() {
+    _pageReceivedDebouce?.cancel();
+    super.dispose();
   }
 
   @override
@@ -105,8 +119,8 @@ class _MeasuredCanvasState extends State<MeasuredCanvas> {
       color: Color(0xFFE0E0E0),
       child: ListView.builder(
         itemBuilder: (_, index) {
-          print("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
-          print("Build index $index");
+          //print("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
+          //print("Build index $index");
 
           if (index >= pageCount) return null;
 
@@ -120,14 +134,15 @@ class _MeasuredCanvasState extends State<MeasuredCanvas> {
           if (result == null) {
             // Empty box
             child = Container(
-              color: [Colors.purple, Colors.green, Colors.red][2],
+              //color: [Colors.purple, Colors.green, Colors.red][2],
+              color: Colors.white,
               width: canvasWidth,
-              height: 400,
+              height: _estimatedPageHeight,
             );
           } else {
-
             final physicalWidth = canvasWidth;
             final physicalHeight = physicalWidth * result.invAspectRatio;
+            _estimatedPageHeight = physicalHeight;
 
             child = Container(
               color: Colors.white,
