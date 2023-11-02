@@ -60,18 +60,23 @@ class RenderCommandExecutor {
   Future<bool> _processChunk(_VersionedPageChunk versionedChunk) async {
     final chunk = versionedChunk.chunk;
 
-    int len = chunk.endIndex - chunk.startIndex + 1;
-
-    int move = 0;
-    int delta = 0;
-
-    bool endReached = false;
-
     print("===================================");
     print("RENDERING CHUNK");
     print(chunk.startIndex);
     print(chunk.focusIndex);
     print(chunk.endIndex);
+
+    int leftSize = chunk.focusIndex - chunk.startIndex + 1;
+    int rightSize = chunk.endIndex - chunk.focusIndex;
+
+    int len = leftSize + rightSize;
+
+    List<int> indices = [chunk.focusIndex, chunk.focusIndex + 1];
+    List<int> steps = [-1, 1];
+    List<int> rem = [leftSize, rightSize];
+
+    bool vibrate = true;
+    int valueIndex = 0;
 
     for (int i = 0; i < len; ++i) {
       if (_closed) {
@@ -81,34 +86,21 @@ class RenderCommandExecutor {
 
       if (versionedChunk.version != _latestVersion) return true;
 
-      int currentIndex;
-
-      if (endReached) {
-        // If either of the two ends have been visited, then we visit the remaning
-        // indices in the opposite direction linearly
-        delta += move;
-        currentIndex = chunk.focusIndex + delta;
-      } else {
-        // This makes the variable `delta` generate the
-        // sequence 0, +1, -1, +2, -2, ...
-        delta = move - delta;
-        move = 1 - move;
-        // Oscillates around the focusIndex so that pages nearest to
-        // focusIndex get rendered first
-        currentIndex = chunk.focusIndex + delta;
-
-        if (currentIndex == chunk.startIndex) {
-          delta = -delta + 1;
-          move = 1;
-          endReached = true;
-        } else if (currentIndex == chunk.endIndex) {
-          delta = -delta;
-          move = -1;
-          endReached = true;
+      int fetchIndex = valueIndex;
+      if (vibrate) {
+        if (rem[valueIndex] == 0) {
+          vibrate = false;
+          valueIndex = 1 - valueIndex;
+          fetchIndex = valueIndex;
+        } else {
+          fetchIndex = valueIndex;
+          valueIndex = 1 - valueIndex;
         }
       }
 
-      print("+++++++++ => ${delta}");
+      final int currentIndex = indices[fetchIndex];
+      indices[fetchIndex] += steps[fetchIndex];
+      rem[fetchIndex]--;
 
       final page = await document.getPage(currentIndex + 1);
       double invAspectRatio = page.height / page.width;

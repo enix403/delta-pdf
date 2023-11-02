@@ -117,7 +117,7 @@ class _MeasuredCanvasState extends State<MeasuredCanvas> {
       if (index > chunk.endIndex)
         endOfLeft = math.max(endOfLeft, chunk.endIndex);
       else if (index < chunk.startIndex)
-        startOfRight = math.min(startOfRight, chunk.startIndex);
+        startOfRight = math.min(chunk.startIndex, startOfRight);
     }
 
     const HALF_CHUNK_SIZE = 8;
