@@ -6,11 +6,20 @@ import 'package:pdfx/pdfx.dart';
 
 import 'render_dto.dart';
 
+class VersionedPageChunk {
+  final PageChunk chunk;
+  final int version;
+
+  VersionedPageChunk(this.chunk, this.version);
+}
+
 class RenderCommandExecutor {
   final PdfDocument document;
+  final VoidCallback afterClosed;
 
   RenderCommandExecutor({
     required this.document,
+    required this.afterClosed,
   });
 
   late int _latestVersion;
@@ -21,6 +30,8 @@ class RenderCommandExecutor {
 
   final StreamController<RenderResult> _streamController = StreamController();
   Stream<RenderResult> get stream => _streamController.stream;
+
+  bool _closed = false;
 
   void updateConfig(int version, ViewportInfo viewportInfo) {
     _latestVersion = version;
@@ -38,16 +49,24 @@ class RenderCommandExecutor {
     _processing = true;
 
     while (_queue.isNotEmpty) {
-      await _processChunk(_queue.removeFirst());
+      final shouldContinue = await _processChunk(_queue.removeFirst());
+      if (!shouldContinue)
+        break;
     }
 
     _processing = false;
   }
 
-  Future<void> _processChunk(VersionedPageChunk versionedChunk) async {
+  // Returns true if the processing should continue, false otherwise
+  Future<bool> _processChunk(VersionedPageChunk versionedChunk) async {
     final chunk = versionedChunk.chunk;
     for (int i = chunk.startIndex; i <= chunk.endIndex; ++i) {
-      if (versionedChunk.version != _latestVersion) return;
+      if (_closed) {
+        afterClosed();
+        return false;
+      }
+
+      if (versionedChunk.version != _latestVersion) return true;
 
       final page = await document.getPage(i + 1);
       double aspectRatio = page.height / page.width;
@@ -71,6 +90,15 @@ class RenderCommandExecutor {
         imageData: image.bytes,
         version: versionedChunk.version,
       ));
+    }
+
+    return true;
+  }
+
+  void close() {
+    _closed = true;
+    if (!_processing) {
+      afterClosed();
     }
   }
 }

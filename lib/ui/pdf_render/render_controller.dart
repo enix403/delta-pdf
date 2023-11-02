@@ -30,6 +30,10 @@ class _AddChunkCommand extends _RenderCommand {
   _AddChunkCommand(this.chunk, {required this.version});
 }
 
+class _CloseCommand extends _RenderCommand {}
+
+class _CloseCommandPong {}
+
 /* ===================================== */
 
 class _WorkerArgs {
@@ -70,8 +74,6 @@ class RenderController {
     await _initMetadata();
     _sendToWorker = await _initWorker();
   }
-
-  void dispose() {}
 
   Future<void> _initMetadata() async {
     // Dart closures (captures) do not play well with isolates. So wrap the
@@ -133,7 +135,11 @@ class RenderController {
         final result = data;
         if (result.version == _latestVersion)
           _renderStreamController.add(result);
+      } else if (data is _CloseCommandPong) {
+        listenFromWorker.close();
       }
+    }, onDone: () {
+      document.close();
     });
 
     final token = RootIsolateToken.instance!;
@@ -156,7 +162,13 @@ class RenderController {
     final listenFromMain = ReceivePort();
     args.sendToMain.send(listenFromMain.sendPort);
 
-    final cmdExecutor = RenderCommandExecutor(document: args.document);
+    final cmdExecutor = RenderCommandExecutor(
+      document: args.document,
+      afterClosed: () {
+        args.sendToMain.send(_CloseCommandPong());
+        listenFromMain.close();
+      },
+    );
 
     cmdExecutor.stream.listen((result) {
       args.sendToMain.send(result);
@@ -167,6 +179,8 @@ class RenderController {
         cmdExecutor.enqueue(data.version, data.chunk);
       } else if (data is _UpdateConfigCommand) {
         cmdExecutor.updateConfig(data.version, data.viewportInfo);
+      } else if (data is _CloseCommand) {
+        cmdExecutor.close();
       }
     });
   }
@@ -199,5 +213,11 @@ class RenderController {
   bool isPageVisited(int index) {
     return _visitedChunks
         .any((chunk) => index >= chunk.startIndex && index <= chunk.endIndex);
+  }
+
+  // [NOTE]: RenderController must not be used after a call to this method
+  void dispose() {
+    _tickVersion();
+    _sendToWorker.send(_CloseCommand());
   }
 }

@@ -56,10 +56,3 @@ class PageChunk {
 
   PageChunk(this.startIndex, this.endIndex);
 }
-
-class VersionedPageChunk {
-  final PageChunk chunk;
-  final int version;
-
-  VersionedPageChunk(this.chunk, this.version);
-}

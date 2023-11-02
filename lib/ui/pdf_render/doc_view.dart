@@ -18,6 +18,8 @@ class _PdfDocViewState extends State<PdfDocView> {
   LoadState _loadState = LoadState.OPENING;
   late final RenderController _renderController;
 
+  bool _disposed = false;
+
   @override
   void initState() {
     super.initState();
@@ -32,9 +34,11 @@ class _PdfDocViewState extends State<PdfDocView> {
         return RenderController.create(document);
       },
     ).then(
-      (pipeline) {
+      (controller) {
+        if (_disposed)
+          return;
         setState(() {
-          _renderController = pipeline;
+          _renderController = controller;
           _loadState = LoadState.LOADED;
         });
       },
@@ -43,7 +47,10 @@ class _PdfDocViewState extends State<PdfDocView> {
 
   @override
   void dispose() {
-    if (_loadState == LoadState.LOADED) _renderController.dispose();
+    _disposed = false;
+    if (_loadState == LoadState.LOADED)
+      //
+      _renderController.dispose();
     super.dispose();
   }
 
