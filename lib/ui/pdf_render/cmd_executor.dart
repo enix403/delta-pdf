@@ -6,6 +6,46 @@ import 'package:pdfx/pdfx.dart';
 
 import 'render_dto.dart';
 
+abstract class _PageVisitor {
+  static Future<void> visitChunkPages(
+    PageChunk chunk,
+    Future<bool> Function(int index) onVisit,
+  ) async {
+    int leftSize = chunk.focusIndex - chunk.startIndex + 1;
+    int rightSize = chunk.endIndex - chunk.focusIndex;
+
+    int len = leftSize + rightSize;
+
+    List<int> indices = [chunk.focusIndex, chunk.focusIndex + 1];
+    List<int> steps = [-1, 1];
+    List<int> rem = [leftSize, rightSize];
+
+    bool vibrate = true;
+    int valueIndex = 0;
+
+    for (int i = 0; i < len; ++i) {
+      int fetchIndex = valueIndex;
+      if (vibrate) {
+        if (rem[valueIndex] == 0) {
+          vibrate = false;
+          valueIndex = 1 - valueIndex;
+          fetchIndex = valueIndex;
+        } else {
+          fetchIndex = valueIndex;
+          valueIndex = 1 - valueIndex;
+        }
+      }
+
+      final int currentIndex = indices[fetchIndex];
+      indices[fetchIndex] += steps[fetchIndex];
+      rem[fetchIndex]--;
+
+      final shouldContinue = await onVisit(currentIndex);
+      if (!shouldContinue) return;
+    }
+  }
+}
+
 class _VersionedPageChunk {
   final PageChunk chunk;
   final int version;
@@ -49,15 +89,18 @@ class RenderCommandExecutor {
     _processing = true;
 
     while (_queue.isNotEmpty) {
-      final shouldContinue = await _processChunk(_queue.removeFirst());
-      if (!shouldContinue) break;
+      await _processChunk(_queue.removeFirst());
+      if (_closed) {
+        afterClosed();
+        break;
+      }
     }
 
     _processing = false;
   }
 
   // Returns true if the processing should continue, false otherwise
-  Future<bool> _processChunk(_VersionedPageChunk versionedChunk) async {
+  Future<void> _processChunk(_VersionedPageChunk versionedChunk) async {
     final chunk = versionedChunk.chunk;
 
     print("===================================");
@@ -66,41 +109,8 @@ class RenderCommandExecutor {
     print(chunk.focusIndex);
     print(chunk.endIndex);
 
-    int leftSize = chunk.focusIndex - chunk.startIndex + 1;
-    int rightSize = chunk.endIndex - chunk.focusIndex;
-
-    int len = leftSize + rightSize;
-
-    List<int> indices = [chunk.focusIndex, chunk.focusIndex + 1];
-    List<int> steps = [-1, 1];
-    List<int> rem = [leftSize, rightSize];
-
-    bool vibrate = true;
-    int valueIndex = 0;
-
-    for (int i = 0; i < len; ++i) {
-      if (_closed) {
-        afterClosed();
-        return false;
-      }
-
-      if (versionedChunk.version != _latestVersion) return true;
-
-      int fetchIndex = valueIndex;
-      if (vibrate) {
-        if (rem[valueIndex] == 0) {
-          vibrate = false;
-          valueIndex = 1 - valueIndex;
-          fetchIndex = valueIndex;
-        } else {
-          fetchIndex = valueIndex;
-          valueIndex = 1 - valueIndex;
-        }
-      }
-
-      final int currentIndex = indices[fetchIndex];
-      indices[fetchIndex] += steps[fetchIndex];
-      rem[fetchIndex]--;
+    await _PageVisitor.visitChunkPages(chunk, (int currentIndex) async {
+      if (_closed || versionedChunk.version != _latestVersion) return false;
 
       final page = await document.getPage(currentIndex + 1);
       double invAspectRatio = page.height / page.width;
@@ -117,17 +127,16 @@ class RenderCommandExecutor {
 
       await page.close();
 
-      if (image == null) continue;
+      if (image != null)
+        _streamController.add(RenderResult(
+          index: currentIndex,
+          imageData: image.bytes,
+          invAspectRatio: invAspectRatio,
+          version: versionedChunk.version,
+        ));
 
-      _streamController.add(RenderResult(
-        index: currentIndex,
-        imageData: image.bytes,
-        invAspectRatio: invAspectRatio,
-        version: versionedChunk.version,
-      ));
-    }
-
-    return true;
+      return true;
+    });
   }
 
   void close() {
