@@ -1,4 +1,3 @@
-import 'dart:math' as math;
 import 'dart:async';
 import 'dart:isolate';
 
@@ -50,7 +49,6 @@ class _WorkerArgs {
 
 class RenderController {
   final PdfDocument document;
-  late final DocumentMetaData metadata;
 
   int _latestVersion = 0;
   int get latestVersion => _latestVersion;
@@ -71,56 +69,7 @@ class RenderController {
   }
 
   Future<void> init() async {
-    await _initMetadata();
     _sendToWorker = await _initWorker();
-  }
-
-  Future<void> _initMetadata() async {
-    // Dart closures (captures) do not play well with isolates. So wrap the
-    // Isolate.run(...) call in a function with all the necessary vairables passed
-    // in as arguments to prevent unnecessary captures
-    fire(
-      RootIsolateToken token,
-      PdfDocument document,
-    ) =>
-        Isolate.run(() async {
-          BackgroundIsolateBinaryMessenger.ensureInitialized(token);
-          return _constructMetaData(document);
-        });
-
-    final token = RootIsolateToken.instance!;
-
-    metadata = await fire(token, document);
-  }
-
-  static Future<DocumentMetaData> _constructMetaData(
-    PdfDocument document,
-  ) async {
-    int totalPages = document.pagesCount;
-    List<double> widths = List.filled(totalPages, 0);
-    List<double> heights = List.filled(totalPages, 0);
-
-    double maxWidth = double.negativeInfinity;
-
-    for (int i = 0; i < totalPages; ++i) {
-      final page = await document.getPage(i + 1);
-
-      widths[i] = page.width;
-      heights[i] = page.height;
-
-      maxWidth = math.max(maxWidth, page.width);
-
-      await page.close();
-    }
-
-    maxWidth = maxWidth;
-
-    return DocumentMetaData(
-      pageCount: totalPages,
-      widths: widths,
-      heights: heights,
-      maxWidth: maxWidth,
-    );
   }
 
   Future<SendPort> _initWorker() {

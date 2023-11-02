@@ -49,7 +49,7 @@ class _MeasuredCanvasState extends State<MeasuredCanvas> {
   double get canvasHeight => widget.canvasSize.height;
 
   RenderController get renderCtrl => widget.renderCtrl;
-  int get pageCount => renderCtrl.metadata.pageCount;
+  int get pageCount => renderCtrl.document.pagesCount;
 
   List<RenderResult?> _results = [];
 
@@ -125,7 +125,7 @@ class _MeasuredCanvasState extends State<MeasuredCanvas> {
               height: 400,
             );
           } else {
-            
+
             final physicalWidth = canvasWidth;
             final physicalHeight = physicalWidth * result.invAspectRatio;
 
