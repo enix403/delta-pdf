@@ -6,11 +6,11 @@ import 'package:pdfx/pdfx.dart';
 
 import 'render_dto.dart';
 
-class VersionedPageChunk {
+class _VersionedPageChunk {
   final PageChunk chunk;
   final int version;
 
-  VersionedPageChunk(this.chunk, this.version);
+  _VersionedPageChunk(this.chunk, this.version);
 }
 
 class RenderCommandExecutor {
@@ -26,7 +26,7 @@ class RenderCommandExecutor {
   late ViewportInfo _viewportInfo;
   bool _processing = false;
 
-  final Queue<VersionedPageChunk> _queue = Queue();
+  final Queue<_VersionedPageChunk> _queue = Queue();
 
   final StreamController<RenderResult> _streamController = StreamController();
   Stream<RenderResult> get stream => _streamController.stream;
@@ -39,7 +39,7 @@ class RenderCommandExecutor {
   }
 
   void enqueue(int version, PageChunk chunk) {
-    _queue.add(VersionedPageChunk(chunk, version));
+    _queue.add(_VersionedPageChunk(chunk, version));
     _startExecution();
   }
 
@@ -58,7 +58,7 @@ class RenderCommandExecutor {
   }
 
   // Returns true if the processing should continue, false otherwise
-  Future<bool> _processChunk(VersionedPageChunk versionedChunk) async {
+  Future<bool> _processChunk(_VersionedPageChunk versionedChunk) async {
     final chunk = versionedChunk.chunk;
     for (int i = chunk.startIndex; i <= chunk.endIndex; ++i) {
       if (_closed) {
