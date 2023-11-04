@@ -1,6 +1,5 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
-import 'package:vector_math/vector_math_64.dart' as vecm;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -47,13 +46,19 @@ class _ScratchState extends State<Scratch> with SingleTickerProviderStateMixin {
   late final AnimationController animationController;
   late Simulation sim;
 
+  double _baseOffset = 0;
+  double _basePointer = 0;
+  //final _offset = 0;
+
   @override
   void initState() {
     // TODO: implement initState
     super.initState();
     animationController = AnimationController.unbounded(vsync: this);
     animationController.addListener(() {
-      scrollController.jumpTo(animationController.value);
+      //scrollController.jumpTo(animationController.value
+      //.clamp(0, scrollController.position.maxScrollExtent));
+      _setScrollY(animationController.value);
     });
   }
 
@@ -65,6 +70,11 @@ class _ScratchState extends State<Scratch> with SingleTickerProviderStateMixin {
     super.dispose();
   }
 
+  void _setScrollY(double value) {
+    scrollController
+        .jumpTo(value.clamp(0, scrollController.position.maxScrollExtent));
+  }
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -73,34 +83,49 @@ class _ScratchState extends State<Scratch> with SingleTickerProviderStateMixin {
         children: [
           Center(
             child: ElevatedButton(
-              onPressed: () {
+              onPressed: () {},
+              child: const Text("Simulate"),
+            ),
+          ),
+          Expanded(
+            child: GestureDetector(
+              onPanStart: (details) {
+                animationController.stop();
+                _baseOffset = scrollController.position.pixels;
+                _basePointer = details.globalPosition.dy;
+                //print("++++++++++++++++++${_baseOffset}");
+              },
+              onPanUpdate: (details) {
+                final dst = details.globalPosition.dy - _basePointer;
+                final delta = -dst;
+                _setScrollY(_baseOffset + delta);
+              },
+              onPanEnd: (details) {
                 animationController.stop();
                 const physics = ClampingScrollPhysics();
                 final simulation = physics.createBallisticSimulation(
                   scrollController.position,
-                  5000.0,
+                  -details.velocity.pixelsPerSecond.dy,
                 );
                 if (simulation != null) {
                   sim = simulation;
                   animationController.animateWith(sim);
                 }
               },
-              child: const Text("Simulate"),
-            ),
-          ),
-          Expanded(
-            child: ListView.builder(
-              physics: NeverScrollableScrollPhysics(),
-              controller: scrollController,
-              itemBuilder: (context, index) {
-                return Container(
-                  height: 116,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(32),
-                    color: _randomColor(),
-                  ),
-                );
-              },
+              child: ListView.builder(
+                physics: NeverScrollableScrollPhysics(),
+                controller: scrollController,
+                //itemCount: ,
+                itemBuilder: (context, index) {
+                  return Container(
+                    height: 116,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(32),
+                      color: _randomColor(),
+                    ),
+                  );
+                },
+              ),
             ),
           ),
         ],
@@ -108,5 +133,3 @@ class _ScratchState extends State<Scratch> with SingleTickerProviderStateMixin {
     );
   }
 }
-
-
