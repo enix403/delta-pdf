@@ -57,10 +57,6 @@ class _MeasuredCanvasState extends State<MeasuredCanvas> {
   Timer? _pageReceivedDebouce;
   double _estimatedPageHeight = 400;
 
-  double _panStartX = -1; // -1 to +1
-  double _baseOffsetX = -1; // -1 to +1
-  double _offsetX = -1; // -1 to +1
-
   @override
   void initState() {
     super.initState();
@@ -131,61 +127,52 @@ class _MeasuredCanvasState extends State<MeasuredCanvas> {
     return PageChunk(startIndex, index, endIndex);
   }
 
+  Widget _buildPageView(RenderResult result) {
+    final physicalWidth = canvasWidth;
+    final physicalHeight = physicalWidth * result.invAspectRatio;
+    _estimatedPageHeight = physicalHeight;
+
+    final imageWidget = Image.memory(
+      result.imageData,
+      width: physicalWidth,
+      height: physicalHeight,
+    );
+
+    final hScroller = SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      physics: const NeverScrollableScrollPhysics(),
+      child: imageWidget,
+    );
+
+    return Container(
+      color: Colors.white,
+      child: hScroller,
+    );
+  }
+
   Widget _buildScroller(BuildContext context) {
     return Container(
       color: Color(0xFFE0E0E0),
       child: ListView.builder(
         itemBuilder: (_, index) {
-          //print("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
-          //print("Build index $index");
-
           if (index >= pageCount) return null;
 
           final chunk = _generateChunk(index);
-
-          if (chunk != null) {
-            renderCtrl.enqueueChunk(chunk);
-          }
+          if (chunk != null) renderCtrl.enqueueChunk(chunk);
 
           final result = _results[index];
-
-          Widget child;
-          if (result == null) {
-            // Empty box
-            child = Container(
-              color: Colors.white,
-              width: canvasWidth,
-              height: _estimatedPageHeight,
-            );
-          } else {
-            final physicalWidth = canvasWidth * 2;
-            final physicalHeight = physicalWidth * result.invAspectRatio;
-            _estimatedPageHeight = physicalHeight;
-
-            final imageWidget = UnconstrainedBox(
-              alignment: Alignment.topLeft,
-              constrainedAxis: Axis.vertical,
-              child: SizedOverflowBox(
-                alignment: Alignment(_offsetX, -1),
-                size: Size(canvasWidth, physicalHeight),
-                child: Image.memory(
-                  result.imageData,
-                  width: physicalWidth,
-                  height: physicalHeight,
-                ),
-              ),
-            );
-
-            child = Container(
-              color: Colors.white,
-              child: imageWidget,
-            );
-          }
+          Widget item = result == null
+              ? Container(
+                  color: Colors.white,
+                  width: canvasWidth,
+                  height: _estimatedPageHeight,
+                )
+              : _buildPageView(result);
 
           return Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              child,
+              item,
               const SizedBox(
                 height: 6,
               )
@@ -198,18 +185,6 @@ class _MeasuredCanvasState extends State<MeasuredCanvas> {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onPanStart: (details) {
-        _baseOffsetX = _offsetX;
-        _panStartX = details.globalPosition.dx;
-      },
-      onPanUpdate: (details) {
-        setState(() {
-          final delta = details.globalPosition.dx - _panStartX;
-          _offsetX = (_baseOffsetX - delta / 150).clamp(-1, 1);
-        });
-      },
-      child: _buildScroller(context),
-    );
+    return _buildScroller(context);
   }
 }
