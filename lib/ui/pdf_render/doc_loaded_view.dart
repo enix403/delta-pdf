@@ -63,40 +63,29 @@ class _MeasuredCanvasState extends State<MeasuredCanvas>
 
   /* ============ Gestures ============ */
 
-  late final AnimationController animationV;
-  late final AnimationController animationH;
+  double _scaleFactor = 2.5;
 
-  late Simulation simulationV;
-  late Simulation simulationH;
+  final _ScrollPack _scrollPackH = _ScrollPack();
+  final _ScrollPack _scrollPackV = _ScrollPack();
 
-  late final ScrollController scrollControllerV = ScrollController();
-  late final ScrollController scrollControllerH = ScrollController();
-
-  // values at the start of a pan
-  double _baseOffsetY = 0;
-  double _basePointerY = 0;
-
-  /* ============================================= */
-
-  double _scaleFactor = 3;
-  double _baseOffsetX = 0;
-  double _basePointerX = 0;
-  double _currentOffsetX = 0;
+  final _pointerBase = Point(0, 0);
+  final _offsetBase = Point(0, 0);
 
   double get maxOffsetX => canvasWidth * (_scaleFactor - 1);
-
-  double get currentOffsetX => _currentOffsetX;
-  set currentOffsetX(double value) =>
-      _currentOffsetX = value.clamp(0, maxOffsetX);
+  double _currentOffsetX = 0;
 
   @override
   void initState() {
     super.initState();
     _initRenderController();
 
-    animationV = AnimationController.unbounded(vsync: this);
-    animationV.addListener(() {
-      _setScrollY(animationV.value);
+    _scrollPackH.init(vsync: this);
+    _scrollPackV.init(vsync: this);
+
+    _scrollPackH.scrollController.addListener(() {
+      setState(() {
+        _currentOffsetX = _scrollPackH.scrollController.offset;
+      });
     });
   }
 
@@ -126,14 +115,9 @@ class _MeasuredCanvasState extends State<MeasuredCanvas>
   @override
   void dispose() {
     _pageReceivedDebouce?.cancel();
-    animationV.dispose();
-    scrollControllerV.dispose();
+    _scrollPackH.dispose();
+    _scrollPackV.dispose();
     super.dispose();
-  }
-
-  void _setScrollY(double value) {
-    scrollControllerV
-        .jumpTo(value.clamp(0, scrollControllerV.position.maxScrollExtent));
   }
 
   @override
@@ -209,7 +193,7 @@ class _MeasuredCanvasState extends State<MeasuredCanvas>
     return Container(
       color: Color(0xFFE0E0E0),
       child: ListView.builder(
-        controller: scrollControllerV,
+        controller: _scrollPackV.scrollController,
         physics: const NeverScrollableScrollPhysics(),
         itemBuilder: (_, index) {
           if (index >= pageCount) return null;
@@ -244,42 +228,103 @@ class _MeasuredCanvasState extends State<MeasuredCanvas>
   Widget build(BuildContext context) {
     return GestureDetector(
       onPanStart: (details) {
-        animationV.stop();
+        _scrollPackH.animController.stop();
+        _scrollPackV.animController.stop();
 
-        _baseOffsetY = scrollControllerV.position.pixels;
-        _basePointerY = details.globalPosition.dy;
+        _offsetBase.x = _scrollPackH.offset;
+        _offsetBase.y = _scrollPackV.offset;
 
-        _baseOffsetX = _currentOffsetX;
-        _basePointerX = details.globalPosition.dx;
+        _pointerBase.x = details.globalPosition.dx;
+        _pointerBase.y = details.globalPosition.dy;
       },
       onPanUpdate: (details) {
-        final dstY = details.globalPosition.dy - _basePointerY;
-        final deltaY = -dstY;
-        _setScrollY(_baseOffsetY + deltaY);
+        final newPoint =
+            Point(details.globalPosition.dx, details.globalPosition.dy);
+        final displacement = newPoint - _pointerBase;
 
-        final dstX = details.globalPosition.dx - _basePointerX;
-        final deltaX = -dstX;
-        //_setScrollY(_baseOffsetY + deltaX);
-        setState(() {
-          currentOffsetX = _baseOffsetX + deltaX;
-        });
+        // We use -displacement since the page should move opposite to the pointer;
+        final newOffset = _offsetBase - displacement;
+
+        _scrollPackH.setScroll(newOffset.x);
+        _scrollPackV.setScroll(newOffset.y);
       },
       onPanEnd: (details) {
-        // Vertical
-        {
-          animationV.stop();
-          const physics = ClampingScrollPhysics();
-          final simulation = physics.createBallisticSimulation(
-            scrollControllerV.position,
-            -details.velocity.pixelsPerSecond.dy,
-          );
-          if (simulation != null) {
-            simulationV = simulation;
-            animationV.animateWith(simulationV);
-          }
-        }
+        _scrollPackH
+            .applyPostScrollSimulation(-details.velocity.pixelsPerSecond.dx);
+        _scrollPackV
+            .applyPostScrollSimulation(-details.velocity.pixelsPerSecond.dy);
       },
-      child: _buildScroller(context),
+      child: Stack(
+        children: [
+          _buildScroller(context),
+          Positioned.fill(
+            child: ListView(
+              controller: _scrollPackH.scrollController,
+              physics: const NeverScrollableScrollPhysics(),
+              scrollDirection: Axis.horizontal,
+              children: [
+                SizedBox(
+                  //color: Colors.red,
+                  height: canvasHeight,
+                  width: canvasWidth * _scaleFactor,
+                )
+              ],
+            ),
+          )
+        ],
+      ),
     );
+  }
+}
+
+class Point {
+  double x;
+  double y;
+
+  Point(this.x, this.y);
+
+  Point operator -(Point other) {
+    return Point(x - other.x, y - other.y);
+  }
+
+  Point operator +(Point other) {
+    return Point(x + other.x, y + other.y);
+  }
+}
+
+class _ScrollPack {
+  late final AnimationController animController;
+  final ScrollController scrollController = ScrollController();
+
+  void init({required TickerProvider vsync}) {
+    animController = AnimationController.unbounded(vsync: vsync);
+    animController.addListener(() {
+      setScroll(animController.value);
+    });
+  }
+
+  double get offset => scrollController.position.pixels;
+
+  double setScroll(double value) {
+    value = value.clamp(0, scrollController.position.maxScrollExtent);
+    scrollController.jumpTo(value);
+    return value;
+  }
+
+  void dispose() {
+    animController.dispose();
+    scrollController.dispose();
+  }
+
+  void applyPostScrollSimulation(double velocity) {
+    animController.stop();
+    const physics = ClampingScrollPhysics();
+    final simulation = physics.createBallisticSimulation(
+      scrollController.position,
+      velocity,
+    );
+    if (simulation != null) {
+      animController.animateWith(simulation);
+    }
   }
 }
