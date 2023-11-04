@@ -64,17 +64,30 @@ class _MeasuredCanvasState extends State<MeasuredCanvas>
   /* ============ Gestures ============ */
 
   late final AnimationController animationV;
-  //late final AnimationController animationH;
+  late final AnimationController animationH;
 
   late Simulation simulationV;
-  //late Simulation simulationH;
+  late Simulation simulationH;
 
   late final ScrollController scrollControllerV = ScrollController();
-  //late final ScrollController scrollControllerH = ScrollController();
+  late final ScrollController scrollControllerH = ScrollController();
 
   // values at the start of a pan
   double _baseOffsetY = 0;
   double _basePointerY = 0;
+
+  /* ============================================= */
+
+  double _scaleFactor = 3;
+  double _baseOffsetX = 0;
+  double _basePointerX = 0;
+  double _currentOffsetX = 0;
+
+  double get maxOffsetX => canvasWidth * (_scaleFactor - 1);
+
+  double get currentOffsetX => _currentOffsetX;
+  set currentOffsetX(double value) =>
+      _currentOffsetX = value.clamp(0, maxOffsetX);
 
   @override
   void initState() {
@@ -162,7 +175,7 @@ class _MeasuredCanvasState extends State<MeasuredCanvas>
   }
 
   Widget _buildPageView(RenderResult result) {
-    final physicalWidth = canvasWidth;
+    final physicalWidth = canvasWidth * _scaleFactor;
     final physicalHeight = physicalWidth * result.invAspectRatio;
     _estimatedPageHeight = physicalHeight;
 
@@ -170,13 +183,17 @@ class _MeasuredCanvasState extends State<MeasuredCanvas>
       result.imageData,
       width: physicalWidth,
       height: physicalHeight,
+      fit: BoxFit.fill,
     );
+
+    double time = maxOffsetX > 0 ? _currentOffsetX / maxOffsetX : 0;
+    double coord = 2 * time - 1;
 
     final scrolled = UnconstrainedBox(
       alignment: Alignment.topLeft,
       constrainedAxis: Axis.vertical,
       child: SizedOverflowBox(
-        alignment: Alignment(-1, -1),
+        alignment: Alignment(coord, -1),
         size: Size(canvasWidth, physicalHeight),
         child: imageWidget,
       ),
@@ -228,24 +245,38 @@ class _MeasuredCanvasState extends State<MeasuredCanvas>
     return GestureDetector(
       onPanStart: (details) {
         animationV.stop();
+
         _baseOffsetY = scrollControllerV.position.pixels;
         _basePointerY = details.globalPosition.dy;
+
+        _baseOffsetX = _currentOffsetX;
+        _basePointerX = details.globalPosition.dx;
       },
       onPanUpdate: (details) {
-        final dst = details.globalPosition.dy - _basePointerY;
-        final delta = -dst;
-        _setScrollY(_baseOffsetY + delta);
+        final dstY = details.globalPosition.dy - _basePointerY;
+        final deltaY = -dstY;
+        _setScrollY(_baseOffsetY + deltaY);
+
+        final dstX = details.globalPosition.dx - _basePointerX;
+        final deltaX = -dstX;
+        //_setScrollY(_baseOffsetY + deltaX);
+        setState(() {
+          currentOffsetX = _baseOffsetX + deltaX;
+        });
       },
       onPanEnd: (details) {
-        animationV.stop();
-        const physics = ClampingScrollPhysics();
-        final simulation = physics.createBallisticSimulation(
-          scrollControllerV.position,
-          -details.velocity.pixelsPerSecond.dy,
-        );
-        if (simulation != null) {
-          simulationV = simulation;
-          animationV.animateWith(simulationV);
+        // Vertical
+        {
+          animationV.stop();
+          const physics = ClampingScrollPhysics();
+          final simulation = physics.createBallisticSimulation(
+            scrollControllerV.position,
+            -details.velocity.pixelsPerSecond.dy,
+          );
+          if (simulation != null) {
+            simulationV = simulation;
+            animationV.animateWith(simulationV);
+          }
         }
       },
       child: _buildScroller(context),
