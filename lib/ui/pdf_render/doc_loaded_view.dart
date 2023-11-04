@@ -45,22 +45,49 @@ class MeasuredCanvas extends StatefulWidget {
   _MeasuredCanvasState createState() => _MeasuredCanvasState();
 }
 
-class _MeasuredCanvasState extends State<MeasuredCanvas> {
+class _MeasuredCanvasState extends State<MeasuredCanvas>
+    with TickerProviderStateMixin {
+  /* ============ Getters ============ */
   double get canvasWidth => widget.canvasSize.width;
   double get canvasHeight => widget.canvasSize.height;
 
   RenderController get renderCtrl => widget.renderCtrl;
   int get pageCount => renderCtrl.document.pagesCount;
 
+  /* ============ Rendering ============ */
+
   List<RenderResult?> _results = [];
 
   Timer? _pageReceivedDebouce;
   double _estimatedPageHeight = 400;
 
+  /* ============ Gestures ============ */
+
+  late final AnimationController animationV;
+  //late final AnimationController animationH;
+
+  late Simulation simulationV;
+  //late Simulation simulationH;
+
+  late final ScrollController scrollControllerV = ScrollController();
+  //late final ScrollController scrollControllerH = ScrollController();
+
+  // values at the start of a pan
+  double _baseOffsetY = 0;
+  double _basePointerY = 0;
+
   @override
   void initState() {
     super.initState();
+    _initRenderController();
 
+    animationV = AnimationController.unbounded(vsync: this);
+    animationV.addListener(() {
+      _setScrollY(animationV.value);
+    });
+  }
+
+  void _initRenderController() {
     _results = List.filled(pageCount, null);
 
     renderCtrl.updateViewport(ViewportInfo(
@@ -86,7 +113,14 @@ class _MeasuredCanvasState extends State<MeasuredCanvas> {
   @override
   void dispose() {
     _pageReceivedDebouce?.cancel();
+    animationV.dispose();
+    scrollControllerV.dispose();
     super.dispose();
+  }
+
+  void _setScrollY(double value) {
+    scrollControllerV
+        .jumpTo(value.clamp(0, scrollControllerV.position.maxScrollExtent));
   }
 
   @override
@@ -138,15 +172,19 @@ class _MeasuredCanvasState extends State<MeasuredCanvas> {
       height: physicalHeight,
     );
 
-    final hScroller = SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      physics: const NeverScrollableScrollPhysics(),
-      child: imageWidget,
+    final scrolled = UnconstrainedBox(
+      alignment: Alignment.topLeft,
+      constrainedAxis: Axis.vertical,
+      child: SizedOverflowBox(
+        alignment: Alignment(-1, -1),
+        size: Size(canvasWidth, physicalHeight),
+        child: imageWidget,
+      ),
     );
 
     return Container(
       color: Colors.white,
-      child: hScroller,
+      child: scrolled,
     );
   }
 
@@ -154,6 +192,8 @@ class _MeasuredCanvasState extends State<MeasuredCanvas> {
     return Container(
       color: Color(0xFFE0E0E0),
       child: ListView.builder(
+        controller: scrollControllerV,
+        physics: const NeverScrollableScrollPhysics(),
         itemBuilder: (_, index) {
           if (index >= pageCount) return null;
 
@@ -185,6 +225,30 @@ class _MeasuredCanvasState extends State<MeasuredCanvas> {
 
   @override
   Widget build(BuildContext context) {
-    return _buildScroller(context);
+    return GestureDetector(
+      onPanStart: (details) {
+        animationV.stop();
+        _baseOffsetY = scrollControllerV.position.pixels;
+        _basePointerY = details.globalPosition.dy;
+      },
+      onPanUpdate: (details) {
+        final dst = details.globalPosition.dy - _basePointerY;
+        final delta = -dst;
+        _setScrollY(_baseOffsetY + delta);
+      },
+      onPanEnd: (details) {
+        animationV.stop();
+        const physics = ClampingScrollPhysics();
+        final simulation = physics.createBallisticSimulation(
+          scrollControllerV.position,
+          -details.velocity.pixelsPerSecond.dy,
+        );
+        if (simulation != null) {
+          simulationV = simulation;
+          animationV.animateWith(simulationV);
+        }
+      },
+      child: _buildScroller(context),
+    );
   }
 }
