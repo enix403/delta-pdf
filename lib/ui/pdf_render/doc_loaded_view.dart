@@ -63,7 +63,9 @@ class _MeasuredCanvasState extends State<MeasuredCanvas>
 
   /* ============ Gestures ============ */
 
-  double _scaleFactor = 2.5;
+  double _scaleFactor = 1;
+  double _baseScaleFactor = 1;
+  bool _currentlyZooming = false;
 
   final _ScrollPack _scrollPackH = _ScrollPack();
   final _ScrollPack _scrollPackV = _ScrollPack();
@@ -227,19 +229,24 @@ class _MeasuredCanvasState extends State<MeasuredCanvas>
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onPanStart: (details) {
+      onScaleStart: (details) {
         _scrollPackH.animController.stop();
         _scrollPackV.animController.stop();
 
         _offsetBase.x = _scrollPackH.offset;
         _offsetBase.y = _scrollPackV.offset;
 
-        _pointerBase.x = details.globalPosition.dx;
-        _pointerBase.y = details.globalPosition.dy;
+        _pointerBase.x = details.focalPoint.dx;
+        _pointerBase.y = details.focalPoint.dy;
+
+        if (details.pointerCount > 1) {
+          _currentlyZooming = true;
+          _baseScaleFactor = _scaleFactor;
+        }
       },
-      onPanUpdate: (details) {
+      onScaleUpdate: (details) {
         final newPoint =
-            Point(details.globalPosition.dx, details.globalPosition.dy);
+            Point(details.focalPoint.dx, details.focalPoint.dy);
         final displacement = newPoint - _pointerBase;
 
         // We use -displacement since the page should move opposite to the pointer;
@@ -247,8 +254,17 @@ class _MeasuredCanvasState extends State<MeasuredCanvas>
 
         _scrollPackH.setScroll(newOffset.x);
         _scrollPackV.setScroll(newOffset.y);
+
+        if (_currentlyZooming) {
+          setState(() {
+            double newScale = _baseScaleFactor * details.scale;
+            _scaleFactor = math.max(1.0, newScale);
+          });
+        }
       },
-      onPanEnd: (details) {
+      onScaleEnd: (details) {
+        _currentlyZooming = false;
+
         _scrollPackH
             .applyPostScrollSimulation(-details.velocity.pixelsPerSecond.dx);
         _scrollPackV
