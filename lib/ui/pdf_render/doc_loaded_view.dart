@@ -51,6 +51,8 @@ class _MeasuredCanvasState extends State<MeasuredCanvas>
   double get canvasWidth => widget.canvasSize.width;
   double get canvasHeight => widget.canvasSize.height;
 
+  double get scaledCanvasWidth => canvasWidth * _scaleFactor;
+
   RenderController get renderCtrl => widget.renderCtrl;
   int get pageCount => renderCtrl.document.pagesCount;
 
@@ -95,7 +97,7 @@ class _MeasuredCanvasState extends State<MeasuredCanvas>
     _results = List.filled(pageCount, null);
 
     renderCtrl.updateViewport(ViewportInfo(
-      width: canvasWidth,
+      width: scaledCanvasWidth,
       pixelRatio: widget.pixelRatio,
     ));
 
@@ -108,7 +110,7 @@ class _MeasuredCanvasState extends State<MeasuredCanvas>
 
       if (_pageReceivedDebouce?.isActive ?? false)
         _pageReceivedDebouce!.cancel();
-      _pageReceivedDebouce = Timer(const Duration(milliseconds: 116), () {
+      _pageReceivedDebouce = Timer(const Duration(milliseconds: 200), () {
         setState(() {});
       });
     });
@@ -161,7 +163,7 @@ class _MeasuredCanvasState extends State<MeasuredCanvas>
   }
 
   Widget _buildPageView(RenderResult result) {
-    final physicalWidth = canvasWidth * _scaleFactor;
+    final physicalWidth = scaledCanvasWidth;
     final physicalHeight = physicalWidth * result.invAspectRatio;
     _estimatedPageHeight = physicalHeight;
 
@@ -245,8 +247,7 @@ class _MeasuredCanvasState extends State<MeasuredCanvas>
         }
       },
       onScaleUpdate: (details) {
-        final newPoint =
-            Point(details.focalPoint.dx, details.focalPoint.dy);
+        final newPoint = Point(details.focalPoint.dx, details.focalPoint.dy);
         final displacement = newPoint - _pointerBase;
 
         // We use -displacement since the page should move opposite to the pointer;
@@ -263,7 +264,15 @@ class _MeasuredCanvasState extends State<MeasuredCanvas>
         }
       },
       onScaleEnd: (details) {
-        _currentlyZooming = false;
+        if (_currentlyZooming) {
+          _currentlyZooming = false;
+          // Re render only when zoom has actually changed
+          if (_baseScaleFactor != _scaleFactor)
+            renderCtrl.updateViewport(ViewportInfo(
+              width: scaledCanvasWidth,
+              pixelRatio: widget.pixelRatio,
+            ));
+        }
 
         _scrollPackH
             .applyPostScrollSimulation(-details.velocity.pixelsPerSecond.dx);
@@ -282,7 +291,7 @@ class _MeasuredCanvasState extends State<MeasuredCanvas>
                 SizedBox(
                   //color: Colors.red,
                   height: canvasHeight,
-                  width: canvasWidth * _scaleFactor,
+                  width: scaledCanvasWidth,
                 )
               ],
             ),
